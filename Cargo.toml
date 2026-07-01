@@ -1,0 +1,19 @@
+[workspace]
+members = [
+  "crates/socrates-math-syntax",
+  "crates/socrates-math-core",
+  "crates/socrates-math-kernel",
+  "crates/socrates-math-protocol",
+]
+resolver = "3"
+
+[workspace.package]
+edition = "2024"
+license = "MIT"
+version = "0.1.0"
+
+[workspace.dependencies]
+num-bigint = { version = "0.4", features = ["serde"] }
+num-integer = "0.1"
+num-traits = "0.2"
+serde = { version = "1", features = ["derive"] }

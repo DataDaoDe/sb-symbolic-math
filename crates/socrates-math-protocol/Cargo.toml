@@ -1,0 +1,9 @@
+[package]
+name = "socrates-math-protocol"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+socrates-math-core = { path = "../socrates-math-core" }
+serde.workspace = true
