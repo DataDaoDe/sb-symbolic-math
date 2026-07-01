@@ -67,16 +67,48 @@ floating point or JavaScript `number`.
 # Part I: Syntax and Elaboration
 
 @syntax @slice-1
+## Feature: Use One Canonical Notation Standard
+
+Symbolic Math has one mathematical notation language. Callers do not choose a
+profile, dialect, draft, or legacy version.
+
+```gherkin
+Feature: Use one canonical notation standard
+
+  Scenario: Parse without selecting a notation profile
+    When I parse the source "3(x-2)+4 = 2x+9"
+    Then the canonical Symbolic Math notation standard is used automatically
+    And no notation profile identifier is required
+    And no notation version is required
+
+  Scenario: Use the same notation rules throughout the platform
+    Given the same mathematical source
+    When it is parsed by the native Rust API
+    And it is parsed through the WebAssembly facade
+    Then both use the same grammar and notation rules
+    And neither API can select an alternate dialect
+
+  Scenario: Do not expose legacy or draft notation modes
+    When I inspect the public parser configuration
+    Then there is no option for a draft notation mode
+    And there is no option for a legacy notation mode
+    And there is no option for a project-specific notation profile
+
+  Scenario: Prevent theory packages from creating syntax dialects
+    Given a theory package is loaded
+    Then it may bind canonical notation forms to semantic meanings
+    But it cannot introduce a competing notation profile or grammar
+```
+
+@syntax @slice-1
 ## Feature: Parse Supported LaTeX Into Concrete Syntax
 
-Socrates Academy needs learner and author input to retain its written structure
-before mathematical meaning is assigned.
+Socrates Academy needs learner and author input written in the canonical
+Symbolic Math notation standard to retain its structure before mathematical
+meaning is assigned.
 
 ```gherkin
 Feature: Parse supported LaTeX into concrete syntax
-
-  Background:
-    Given the notation profile "socrates-latex@0.1"
 
   Scenario: Parse a linear equation
     When I parse the source "3(x-2)+4 = 2x+9"
@@ -112,9 +144,6 @@ Feature: Parse supported LaTeX into concrete syntax
 ```gherkin
 Feature: Reject unsupported LaTeX clearly
 
-  Background:
-    Given the notation profile "socrates-latex@0.1"
-
   Scenario: Reject an unsupported command
     When I parse a statement containing an unsupported command
     Then parsing is rejected
@@ -141,8 +170,7 @@ Feature: Reject unsupported LaTeX clearly
 Feature: Recover from incomplete learner input
 
   Scenario: Preserve a recoverable partial equation
-    Given the notation profile "socrates-latex@0.1"
-    And parsing is configured for interactive recovery
+    Given parsing is configured for interactive recovery
     When I parse the source "3x + = 7"
     Then the result is "ParsedWithRecovery" or "Incomplete"
     And a hole is present where an operand is missing
@@ -1317,7 +1345,7 @@ Feature: Render mathematical objects deterministically
     Given the elaborated equation "3(x-2)+4 = 2x+9"
     When I render it as KaTeX-compatible LaTeX in canonical mode
     Then the output is deterministic
-    And the output is accepted by the supported KaTeX profile
+    And the output is accepted by the supported KaTeX renderer
 
   Scenario: Render an exact rational
     Given the exact rational value "5/6"

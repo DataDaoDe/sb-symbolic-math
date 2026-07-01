@@ -71,6 +71,7 @@ Symbolic Math MUST be able to:
 Symbolic Math is not intended to be:
 
 - an arbitrary TeX interpreter;
+- selectable notation profiles, legacy notation modes, or per-project surface dialects;
 - one universal untyped expression tree;
 - one universal simplification algorithm;
 - a black-box solver whose output is trusted without verification;
@@ -237,7 +238,6 @@ RuleId
 RelationId
 TypeId
 ConceptId
-NotationProfileId
 CertificateFormatId
 ```
 
@@ -259,19 +259,37 @@ Stable identifiers MUST be versioned through their owning theory package.
 
 ## 10. Syntax Layer
 
-### 10.1 Versioned input profile
+### 10.1 Canonical notation standard
 
-The project supports a versioned Socrates Mathematical LaTeX Profile.
+The project uses one canonical **Symbolic Math Notation Standard**.
 
-It does not accept arbitrary LaTeX.
+The notation standard is not selected, negotiated, or versioned per parser
+call. The same grammar and notation rules apply throughout the library,
+applications, stored learner work, tests, and rendered mathematical output.
+
+The project does not support:
+
+- alternate notation profiles;
+- draft or legacy notation modes;
+- project-specific syntax dialects;
+- profile identifiers or profile-version negotiation.
+
+The standard is LaTeX-based but does not accept arbitrary LaTeX. It defines the
+single mathematical input language understood by Symbolic Math.
 
 The parser MUST receive:
 
 - source text;
-- notation profile identifier and version;
-- optional locale;
-- optional syntax mode;
-- optional recovery policy.
+- an optional locale used only for diagnostics and natural-language
+  presentation;
+- an optional recovery policy.
+
+The parser MUST NOT accept configuration that changes the mathematical grammar
+or selects another notation standard.
+
+The canonical standard may grow as the library gains mathematical capabilities,
+but new syntax becomes part of the one standard rather than creating parallel
+versions or profiles.
 
 ### 10.2 Concrete syntax tree
 
@@ -445,7 +463,6 @@ Context
 ├── local variable declarations
 ├── hypotheses
 ├── local definitions
-├── notation environment
 ├── structure and instance environment
 ├── coercion graph
 ├── domain and branch conventions
@@ -534,7 +551,7 @@ TheoryPackage
 ├── dependencies
 ├── semantic symbols
 ├── types and structures
-├── notation declarations
+├── semantic bindings for the canonical notation standard
 ├── definitions
 ├── axioms
 ├── theorems
@@ -574,6 +591,10 @@ Rust workspace.
 
 Dynamic third-party loading is deferred until package signing, sandboxing,
 compatibility, and trust policies are specified.
+
+Theory packages MAY attach semantic meanings to forms already defined by the
+canonical notation standard. They MUST NOT create alternate notation profiles,
+competing grammars, legacy syntax modes, or package-specific surface dialects.
 
 ## 17. Relations
 
@@ -1169,7 +1190,6 @@ A serialized verified result MUST contain enough information to preserve its
 meaning and replayability, including:
 
 - schema version;
-- notation profile and version;
 - context;
 - semantic object graph;
 - exact numeric representation;
@@ -1218,10 +1238,6 @@ Illustrative API:
 
 ```ts
 const engine = await createMathEngine({
-  notationProfile: {
-    id: "socrates-latex",
-    version: "0.1",
-  },
   theories: [
     "core.logic@0.1",
     "core.rational@0.1",
@@ -1356,9 +1372,10 @@ domain model.
 The first complete implementation target is single-variable linear equations
 over exact rational numbers.
 
-### 35.1 Supported notation profile
+### 35.1 Supported canonical notation
 
-Version `socrates-latex@0.1` MUST support:
+For the first vertical slice, the canonical Symbolic Math Notation Standard
+MUST support:
 
 - integer literals;
 - rational literals using `\frac{a}{b}`;
