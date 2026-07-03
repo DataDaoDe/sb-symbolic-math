@@ -1,0 +1,18 @@
+{
+  "name": "@socrates/consumer-exercises-spec",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "tsc --noEmit && cargo test -p socrates-math-app --test consumer_exercises_spec"
+  },
+  "dependencies": {
+    "@socrates/math": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^5.9.3"
+  }
+}

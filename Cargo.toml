@@ -1,8 +1,16 @@
 [workspace]
 members = [
   "crates/socrates-math-syntax",
+  "crates/socrates-math-elab",
   "crates/socrates-math-core",
   "crates/socrates-math-kernel",
+  "crates/socrates-math-algebra",
+  "crates/socrates-math-eval",
+  "crates/socrates-math-solve",
+  "crates/socrates-math-compare",
+  "crates/socrates-math-render",
+  "crates/socrates-math-app",
+  "crates/socrates-math-wasm",
   "crates/socrates-math-protocol",
 ]
 resolver = "3"
@@ -17,3 +25,5 @@ num-bigint = { version = "0.4", features = ["serde"] }
 num-integer = "0.1"
 num-traits = "0.2"
 serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+wasm-bindgen = "0.2"

@@ -109,12 +109,24 @@ impl ExactRational {
         .expect("multiplying nonzero rational denominators cannot produce zero")
     }
 
+    pub fn neg(&self) -> Self {
+        Self {
+            numerator: -&self.numerator,
+            denominator: self.denominator.clone(),
+        }
+    }
+
     pub fn mul(&self, rhs: &Self) -> Self {
         Self::new(
             &self.numerator * &rhs.numerator,
             &self.denominator * &rhs.denominator,
         )
         .expect("multiplying nonzero rational denominators cannot produce zero")
+    }
+
+    pub fn pow_u32(&self, exponent: u32) -> Self {
+        Self::new(self.numerator.pow(exponent), self.denominator.pow(exponent))
+            .expect("raising a nonzero rational denominator to a power cannot produce zero")
     }
 
     pub fn div(&self, rhs: &Self) -> Result<Self, ExactValueError> {
@@ -126,6 +138,10 @@ impl ExactRational {
             &self.numerator * &rhs.denominator,
             &self.denominator * &rhs.numerator,
         )
+    }
+
+    pub fn is_integer(&self) -> bool {
+        self.denominator.is_one()
     }
 }
 
@@ -175,5 +191,13 @@ mod tests {
         let half = ExactRational::parse_fraction("1", "2").unwrap();
         let third = ExactRational::parse_fraction("1", "3").unwrap();
         assert_eq!(half.add(&third).to_string(), "5/6");
+    }
+
+    #[test]
+    fn raises_exact_rationals_to_nonnegative_integer_powers() {
+        let value = ExactRational::parse_fraction("-2", "3").unwrap();
+
+        assert_eq!(value.pow_u32(3).to_string(), "-8/27");
+        assert_eq!(value.pow_u32(0).to_string(), "1");
     }
 }

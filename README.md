@@ -218,6 +218,32 @@ Symbolic Math is designed to provide:
 - versioned public serialization;
 - a stable TypeScript API backed by Rust and WebAssembly.
 
+## Playgrounds
+
+Use the playgrounds when you want to try the current API surface without adding
+temporary code to tests or downstream applications.
+
+```sh
+pnpm run playground:rust
+pnpm run playground:ts
+```
+
+Try individual Rust API calls and inspect the serialized DTOs:
+
+```sh
+pnpm run playground:rust:api -- normalize-expression "3(x - 2) + 4" latex x
+pnpm run playground:rust:api -- compare-expressions "2(x + 1)" "2x + 2" latex x
+pnpm run playground:rust:api -- compare-expressions "(x + 1)(x - 1)" "x^2 - 1" latex x
+pnpm run playground:rust:api -- compare-equations "x + 1 = 3" "2x = 4" x
+pnpm run playground:rust:api -- compare-numeric "\\frac{333}{1000}" "\\frac{1}{3}" latex 0.001
+pnpm run playground:rust:api -- differentiate "x^3 + 2x" latex x
+pnpm run playground:rust:api -- integrate "x^3" latex x
+```
+
+The Rust playground calls `socrates-math-app` directly. The TypeScript
+playground imports `@socrates/math` like a downstream app and uses a local
+Rust-backed binding until the generated WASM package is available.
+
 Results must distinguish at least:
 
 ```text

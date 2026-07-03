@@ -1,0 +1,17 @@
+[package]
+name = "socrates-math-app"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+socrates-math-algebra = { path = "../socrates-math-algebra" }
+socrates-math-compare = { path = "../socrates-math-compare" }
+socrates-math-core = { path = "../socrates-math-core" }
+socrates-math-elab = { path = "../socrates-math-elab" }
+socrates-math-protocol = { path = "../socrates-math-protocol" }
+socrates-math-render = { path = "../socrates-math-render" }
+socrates-math-solve = { path = "../socrates-math-solve" }
+socrates-math-syntax = { path = "../socrates-math-syntax" }
+serde.workspace = true
+serde_json.workspace = true

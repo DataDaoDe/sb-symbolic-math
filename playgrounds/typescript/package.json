@@ -1,0 +1,19 @@
+{
+  "name": "@socrates/playground",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "pnpm --filter @socrates/math build && tsc && node dist/index.js",
+    "try": "pnpm --filter @socrates/math build && tsc && node dist/index.js",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@socrates/math": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "typescript": "^5.9.3"
+  }
+}

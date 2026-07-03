@@ -136,6 +136,12 @@ Feature: Parse supported LaTeX into concrete syntax
     Then parsing succeeds
     And juxtaposition is represented at "2x"
     And explicit multiplication is represented at "3\cdot y"
+
+  Scenario: Parse polynomial exponent notation
+    When I parse the source "x^{3} + x^2"
+    Then parsing succeeds
+    And both exponent forms are represented as power expressions
+    And the exponent operands retain source spans
 ```
 
 @syntax @slice-1
@@ -638,6 +644,55 @@ Feature: Represent exact integers and rationals
     When I construct a rational with denominator zero
     Then the operation returns "Undefined" or a construction diagnostic
     And no rational value is created
+```
+
+@algebra @expression-comparison
+## Feature: Normalize And Compare Polynomial Expressions
+
+```gherkin
+Feature: Normalize and compare polynomial expressions
+
+  Scenario: Normalize a polynomial expression with powers
+    When I normalize the expression "x^3 + x^3" with variable "x"
+    Then the result is Proven
+    And the normalized LaTeX is "2x^{3}"
+
+  Scenario: Compare equivalent polynomial expressions
+    When I compare "(x + 1)(x - 1)" and "x^2 - 1" with variable "x"
+    Then the result is Proven
+    And the expressions are equal under relation "expression.equivalent"
+    And both normalized expressions render as "x^{2} - 1"
+
+  Scenario: Reject negative exponents outside the polynomial domain
+    When I normalize the expression "x^-1" with variable "x"
+    Then the result is Unknown
+    And the diagnostic code is "Unknown.UnsupportedDomain"
+```
+
+@calculus @polynomial
+## Feature: Differentiate And Integrate Polynomial Expressions
+
+```gherkin
+Feature: Differentiate and integrate polynomial expressions
+
+  Scenario: Differentiate a polynomial expression
+    When I differentiate the expression "x^3 + 2x" with variable "x"
+    Then the result is Proven
+    And the relation is "calculus.derivative"
+    And the result LaTeX is "3x^{2} + 2"
+    And a derivation step records the polynomial derivative power rule
+
+  Scenario: Integrate a polynomial expression
+    When I integrate the expression "x^3" with variable "x"
+    Then the result is Proven
+    And the relation is "calculus.antiderivative"
+    And the result LaTeX is "\frac{1}{4}x^{4}"
+    And a derivation step records the polynomial antiderivative power rule
+
+  Scenario: Do not invent an arbitrary integration constant
+    When I integrate a polynomial expression
+    Then the returned expression is one antiderivative
+    And arbitrary constants are left to a future richer expression model
 ```
 
 @evaluation @slice-1
@@ -1751,34 +1806,225 @@ Feature: Treat functions as first-class mathematical objects
 ```
 
 @future @calculus
-## Feature: Differentiate With Conditions And Proof
+## Feature: Differentiate Undergraduate Functions Step By Step
+
+These scenarios define the intended undergraduate calculus surface area. They
+are implementation targets unless promoted to an active slice.
 
 ```gherkin
-Feature: Differentiate with conditions and proof
+Feature: Differentiate undergraduate functions step by step
 
   Scenario: Differentiate a polynomial
     Given a polynomial function over the reals
     When I differentiate it
     Then the derivative is exact
     And the derivation applies verified differentiation rules
+    And each term records the power rule step that produced it
+
+  Scenario: Differentiate a product
+    Given the expression "x^2 sin(x)"
+    When I differentiate it with respect to "x"
+    Then the result is proven
+    And the derivation selects the product rule
+    And one step differentiates "x^2"
+    And one step differentiates "sin(x)"
+    And one step combines the two product-rule terms
+
+  Scenario: Differentiate a quotient
+    Given the expression "\frac{x^2 + 1}{x - 1}"
+    When I differentiate it with respect to "x"
+    Then the result is proven on the domain "x != 1"
+    And the derivation selects the quotient rule
+    And the nonzero denominator condition is recorded
+
+  Scenario: Differentiate a composition
+    Given the expression "sin(x^2)"
+    When I differentiate it with respect to "x"
+    Then the result is proven
+    And the derivation selects the chain rule
+    And the outer derivative step handles "sin(u)"
+    And the inner derivative step handles "x^2"
+
+  Scenario: Differentiate exponential and logarithmic functions
+    Given the expression "e^x + ln(x)"
+    When I differentiate it with respect to "x"
+    Then the result is proven on the domain "x > 0"
+    And the derivation records the exponential derivative rule
+    And the derivation records the logarithm derivative rule
+
+  Scenario: Differentiate trigonometric functions
+    Given the expression "sin(x) + cos(x) + tan(x)"
+    When I differentiate it with respect to "x"
+    Then the result is proven where "tan(x)" is defined
+    And each trigonometric derivative rule is recorded separately
 
   Scenario: Report differentiability conditions
     Given a piecewise or partially defined function
     When I differentiate it
     Then the result includes its validity domain
     And unresolved differentiability conditions are explicit
+
+  Scenario: Validate a student derivative answer
+    Given the saved derivative answer "3x^2 + 2"
+    And the student enters "2 + 3x^2"
+    When I compare the answers as mathematical expressions
+    Then the result is Proven
+    And the normalized derivative forms are shown
+    And the comparison relation is "expression.equivalent"
+```
+
+@future @calculus @integrals
+## Feature: Integrate Undergraduate Functions By Strategy
+
+```gherkin
+Feature: Integrate undergraduate functions by strategy
+
+  Scenario: Integrate a polynomial by the power rule
+    Given the expression "x^3 + 2x"
+    When I integrate it with respect to "x"
+    Then the result is proven
+    And the result includes an arbitrary constant when the expression model supports it
+    And each term records the antiderivative power rule step
+
+  Scenario: Integrate by substitution
+    Given the expression "2x cos(x^2)"
+    When I integrate it with respect to "x"
+    Then the strategy "substitution" is selected
+    And the substitution "u = x^2" is recorded
+    And the differential transformation "du = 2x dx" is recorded
+    And the final answer is checked by differentiating it
+
+  Scenario: Integrate by parts
+    Given the expression "x e^x"
+    When I integrate it with respect to "x"
+    Then the strategy "integration by parts" is selected
+    And the chosen "u" and "dv" are recorded
+    And the derived "du" and "v" are recorded
+    And the final answer is checked by differentiation
+
+  Scenario: Integrate using partial fractions
+    Given the expression "\frac{1}{x^2 - 1}"
+    When I integrate it with respect to "x"
+    Then the strategy "partial fractions" is selected
+    And the denominator factorization is recorded
+    And each partial fraction coefficient is solved exactly
+    And domain exclusions "x != 1" and "x != -1" are recorded
+
+  Scenario: Integrate powers of sine and cosine
+    Given the expression "sin^3(x) cos(x)"
+    When I integrate it with respect to "x"
+    Then an appropriate trigonometric substitution is selected
+    And the identity or substitution used is recorded
+    And the transformed integral is shown before evaluation
+
+  Scenario: Integrate rational trigonometric expressions
+    Given the expression "\frac{1}{1 + sin(x)}"
+    When I integrate it with respect to "x"
+    Then a supported strategy such as rewriting or tangent half-angle substitution is selected
+    And the chosen transformation is recorded
+    And any domain restrictions are reported
+
+  Scenario: Report that an integral needs a special function
+    Given an elementary-looking expression whose antiderivative is not elementary
+    When I request an elementary antiderivative
+    Then the result is Unknown or Conditional
+    And no fabricated elementary answer is returned
+    And the diagnostic identifies the unsupported integration domain
+
+  Scenario: Validate a student integral answer
+    Given a saved antiderivative answer
+    And a student answer differing by an additive constant
+    When I compare the answers as antiderivatives
+    Then the result is Proven
+    And the derivative of the difference is verified to be zero on the domain
+```
+
+@future @calculus @applications
+## Feature: Solve Calculus Application Problems
+
+```gherkin
+Feature: Solve calculus application problems
+
+  Scenario: Find critical points
+    Given a differentiable function on an interval
+    When I ask for critical points
+    Then the derivative is computed
+    And points where the derivative is zero are solved
+    And points where the derivative is undefined are considered
+    And each candidate is checked against the domain
+
+  Scenario: Classify extrema using derivative tests
+    Given critical points for a function
+    When I classify extrema
+    Then the first-derivative or second-derivative test used is recorded
+    And the conclusion is tied to sign or concavity evidence
+
+  Scenario: Compute tangent line
+    Given a function and point "x = a"
+    When I request the tangent line
+    Then the function value is computed
+    And the derivative value is computed
+    And the point-slope line equation is produced step by step
+
+  Scenario: Compute area under a curve
+    Given a continuous nonnegative function on "[a,b]"
+    When I compute area under the curve
+    Then a definite integral is constructed
+    And the antiderivative is evaluated at both bounds
+    And the subtraction step is exact when possible
 ```
 
 @future @analysis
-## Feature: Reason About Limits And Convergence
+## Feature: Reason About Limits Step By Step
 
 ```gherkin
-Feature: Reason about limits and convergence
+Feature: Reason about limits step by step
 
-  Scenario: Prove a supported limit
-    Given a limit problem within a complete decision procedure
+  Scenario: Evaluate a limit by direct substitution
+    Given the limit "\lim_{x \to 2} (x^2 + 1)"
     When I compute the limit
     Then the result is proven
+    And the substitution step "x = 2" is recorded
+    And the final arithmetic is exact
+
+  Scenario: Evaluate a removable discontinuity by factoring
+    Given the limit "\lim_{x \to 1} \frac{x^2 - 1}{x - 1}"
+    When I compute the limit
+    Then the strategy "factor and cancel" is selected
+    And the excluded point "x = 1" is preserved as a domain condition
+    And the simplified expression is evaluated step by step
+
+  Scenario: Evaluate a limit by rationalization
+    Given the limit "\lim_{x \to 0} \frac{\sqrt{x + 1} - 1}{x}"
+    When I compute the limit
+    Then the strategy "rationalize numerator" is selected
+    And the conjugate multiplication is recorded
+    And the final simplified limit is evaluated
+
+  Scenario: Evaluate an infinite limit by dominant terms
+    Given the limit "\lim_{x \to \infty} \frac{3x^2 + 1}{x^2 - 5}"
+    When I compute the limit
+    Then the dominant-degree comparison is recorded
+    And the leading coefficient ratio is returned
+
+  Scenario: Evaluate one-sided limits
+    Given the limit "\lim_{x \to 0^+} \frac{1}{x}"
+    When I compute the limit
+    Then the approach direction is explicit
+    And the result may be "+\infty" with relation "diverges_to_infinity"
+    And the sign reasoning is recorded
+
+  Scenario: Apply l'Hopital's rule
+    Given a limit with indeterminate form "0/0" or "\infty/\infty"
+    When I apply l'Hopital's rule
+    Then the indeterminate form is verified first
+    And numerator and denominator derivatives are recorded
+    And the transformed limit is solved recursively
+
+  Scenario: Use standard trigonometric limits
+    Given the limit "\lim_{x \to 0} \frac{sin(x)}{x}"
+    When I compute the limit
+    Then the standard trigonometric limit theorem is cited
     And the domain and approach direction are explicit
 
   Scenario: Return unknown for an unresolved limit
@@ -1786,12 +2032,83 @@ Feature: Reason about limits and convergence
     When I compute it
     Then the result is "Unknown"
     And no heuristic guess is presented as verified
+```
+
+@future @analysis @series
+## Feature: Analyze Sequences And Series
+
+```gherkin
+Feature: Analyze sequences and series
 
   Scenario: Report convergence regions
     Given a power series
     When I analyze convergence
     Then the region or radius of convergence is included
     And boundary cases are treated explicitly
+
+  Scenario: Apply the ratio test
+    Given a positive-term series
+    When I apply the ratio test
+    Then the limit of consecutive term ratios is computed
+    And the convergence conclusion follows the verified ratio-test cases
+
+  Scenario: Apply the integral test
+    Given a positive decreasing function corresponding to a series
+    When I apply the integral test
+    Then positivity and monotonicity obligations are recorded
+    And the improper integral is evaluated or reported unknown
+
+  Scenario: Estimate Taylor polynomial remainder
+    Given a function, expansion point, degree, and interval
+    When I request a Taylor approximation
+    Then the polynomial terms are computed
+    And the remainder bound method is recorded
+    And exact symbolic coefficients are preserved when possible
+```
+
+@future @trigonometry
+## Feature: Simplify And Solve Trigonometric Problems
+
+```gherkin
+Feature: Simplify and solve trigonometric problems
+
+  Scenario: Verify a Pythagorean identity
+    Given the expression "sin^2(x) + cos^2(x)"
+    When I simplify it using trigonometric identities
+    Then the result is "1"
+    And the derivation cites the Pythagorean identity
+
+  Scenario: Apply angle-sum identities
+    Given the expression "sin(x + y)"
+    When I expand it trigonometrically
+    Then the result is "sin(x)cos(y) + cos(x)sin(y)"
+    And the angle-sum identity is recorded
+
+  Scenario: Apply double-angle identities
+    Given the expression "cos(2x)"
+    When I rewrite it using a requested double-angle form
+    Then the chosen equivalent form is returned
+    And alternative valid forms are not confused with errors
+
+  Scenario: Solve a basic trigonometric equation on an interval
+    Given the equation "sin(x) = \frac{1}{2}"
+    And the interval "[0, 2\pi)"
+    When I solve for "x"
+    Then all solutions in the interval are returned
+    And periodic families outside the interval are not silently included
+
+  Scenario: Solve a trigonometric equation by identity transformation
+    Given the equation "2sin^2(x) - 1 = 0"
+    And the interval "[0, 2\pi)"
+    When I solve for "x"
+    Then the algebraic substitution or identity step is recorded
+    And every candidate angle is checked in the original equation
+
+  Scenario: Respect radians and degrees explicitly
+    Given trigonometric input includes an angle unit
+    When it is evaluated or solved
+    Then the angle unit is explicit in the context
+    And no silent degree-radian conversion occurs
 ```
 
 @future @complex
@@ -1814,22 +2131,75 @@ Feature: Respect complex branch conventions
 ```
 
 @future @linear-algebra
-## Feature: Compute With Linear Maps And Matrices
+## Feature: Compute With Vectors, Linear Maps, And Matrices
 
 ```gherkin
-Feature: Compute with linear maps and matrices
+Feature: Compute with vectors, linear maps, and matrices
+
+  Scenario: Compute vector dot product
+    Given vectors "u = [1, 2, 3]" and "v = [4, 5, 6]"
+    When I compute "u dot v"
+    Then the scalar result is "32"
+    And the step expansion "1*4 + 2*5 + 3*6" is recorded
+
+  Scenario: Compute vector projection
+    Given vectors "u" and nonzero vector "v"
+    When I project "u" onto "v"
+    Then the scalar coefficient "\frac{u dot v}{v dot v}" is computed
+    And the nonzero condition on "v" is recorded
+    And the projected vector is returned
 
   Scenario: Type-check matrix multiplication
     Given matrices "A" and "B"
     When I form "AB"
     Then multiplication is accepted only when dimensions align
     And the resulting dimensions are inferred
+    And each entry computation can be expanded as a row-column dot product
+
+  Scenario: Compute matrix multiplication step by step
+    Given concrete matrices "A" and "B"
+    When I compute "AB"
+    Then each output entry records the row-column dot product
+    And exact arithmetic is preserved
 
   Scenario: Verify row reduction
     Given a matrix
     When I compute row-reduced echelon form
     Then each elementary row operation is recorded or certified
     And row equivalence is verified
+
+  Scenario: Solve a linear system by row reduction
+    Given an augmented matrix for a linear system
+    When I solve the system
+    Then the row-reduction steps are recorded
+    And the solution classification is one of "unique", "none", or "infinitely many"
+    And free variables are named explicitly when present
+
+  Scenario: Compute determinant by expansion or elimination
+    Given a square matrix
+    When I compute its determinant
+    Then the selected method is recorded
+    And row-swap and row-scaling effects on determinant are tracked
+
+  Scenario: Compute inverse matrix
+    Given an invertible square matrix
+    When I compute its inverse
+    Then the augmented matrix "[A | I]" construction is recorded
+    And the row operations leading to "[I | A^-1]" are recorded
+    And non-invertibility is reported when a pivot cannot be found
+
+  Scenario: Compute eigenvalues and eigenvectors
+    Given a square matrix
+    When I compute eigenvalues and eigenvectors
+    Then the characteristic polynomial is constructed
+    And each eigenvalue candidate is checked
+    And each eigenspace basis is returned with row-reduction evidence
+
+  Scenario: Determine basis, rank, nullity, and span
+    Given a set of vectors
+    When I analyze linear independence and span
+    Then row-reduction evidence is recorded
+    And rank and nullity are related by the rank-nullity theorem when applicable
 
   Scenario: Distinguish matrices from linear maps
     Given a linear map and a choice of bases

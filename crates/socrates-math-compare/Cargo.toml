@@ -1,5 +1,5 @@
 [package]
-name = "socrates-math-protocol"
+name = "socrates-math-compare"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
@@ -8,3 +8,7 @@ version.workspace = true
 socrates-math-core = { path = "../socrates-math-core" }
 socrates-math-solve = { path = "../socrates-math-solve" }
 serde.workspace = true
+
+[dev-dependencies]
+socrates-math-elab = { path = "../socrates-math-elab" }
+socrates-math-syntax = { path = "../socrates-math-syntax" }

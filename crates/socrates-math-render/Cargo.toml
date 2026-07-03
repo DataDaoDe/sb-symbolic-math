@@ -1,10 +1,10 @@
 [package]
-name = "socrates-math-protocol"
+name = "socrates-math-render"
 edition.workspace = true
 license.workspace = true
 version.workspace = true
 
 [dependencies]
+socrates-math-algebra = { path = "../socrates-math-algebra" }
 socrates-math-core = { path = "../socrates-math-core" }
 socrates-math-solve = { path = "../socrates-math-solve" }
-serde.workspace = true

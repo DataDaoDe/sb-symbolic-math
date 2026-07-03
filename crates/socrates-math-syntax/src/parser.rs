@@ -131,7 +131,7 @@ impl<'source> Parser<'source> {
     fn parse_multiplicative(
         &mut self,
     ) -> Result<ConcreteExpression, ParseOutcome<ConcreteExpression>> {
-        let mut left = self.parse_unary()?;
+        let mut left = self.parse_power()?;
 
         loop {
             self.skip_whitespace();
@@ -149,7 +149,7 @@ impl<'source> Parser<'source> {
                 MultiplicationKind::Juxtaposition => Span::new(left.span.end, self.cursor),
             };
 
-            let right = self.parse_unary()?;
+            let right = self.parse_power()?;
             let span = left.span.join(right.span);
 
             left = ConcreteExpression {
@@ -163,6 +163,30 @@ impl<'source> Parser<'source> {
                 span,
             };
         }
+    }
+
+    fn parse_power(&mut self) -> Result<ConcreteExpression, ParseOutcome<ConcreteExpression>> {
+        let left = self.parse_unary()?;
+        self.skip_whitespace();
+
+        if !self.consume_char('^') {
+            return Ok(left);
+        }
+
+        let operator_span = Span::new(self.cursor - 1, self.cursor);
+        let right = self.parse_power()?;
+        let span = left.span.join(right.span);
+
+        Ok(ConcreteExpression {
+            kind: ConcreteExpressionKind::Binary {
+                operator: BinaryOperator::Power,
+                operator_span,
+                left: Box::new(left),
+                right: Box::new(right),
+                multiplication_kind: None,
+            },
+            span,
+        })
     }
 
     fn parse_unary(&mut self) -> Result<ConcreteExpression, ParseOutcome<ConcreteExpression>> {
@@ -210,7 +234,11 @@ impl<'source> Parser<'source> {
         }
 
         if self.peek_char() == Some('(') {
-            return self.parse_group();
+            return self.parse_group('(', ')');
+        }
+
+        if self.peek_char() == Some('{') {
+            return self.parse_group('{', '}');
         }
 
         if self.peek_char().is_some_and(|ch| ch.is_ascii_digit()) {
@@ -294,17 +322,25 @@ impl<'source> Parser<'source> {
         Ok((text, Span::new(integer_start, integer_end)))
     }
 
-    fn parse_group(&mut self) -> Result<ConcreteExpression, ParseOutcome<ConcreteExpression>> {
+    fn parse_group(
+        &mut self,
+        open_delimiter: char,
+        close_delimiter: char,
+    ) -> Result<ConcreteExpression, ParseOutcome<ConcreteExpression>> {
         let open = Span::new(self.cursor, self.cursor + 1);
         self.cursor += 1;
         let inner = self.parse_expression_inner()?;
         self.skip_whitespace();
 
-        if !self.consume_char(')') {
+        if !self.consume_char(close_delimiter) {
             return Err(ParseOutcome::Incomplete(Diagnostic::error(
-                DiagnosticCode::ExpectedRightParenthesis,
+                if open_delimiter == '(' {
+                    DiagnosticCode::ExpectedRightParenthesis
+                } else {
+                    DiagnosticCode::ExpectedRightBrace
+                },
                 Some(open),
-                "expected ')'",
+                format!("expected '{close_delimiter}'"),
             )));
         }
 
@@ -431,7 +467,7 @@ impl<T> ParseOutcome<T> {
 }
 
 fn starts_primary(ch: char) -> bool {
-    ch == '(' || ch.is_ascii_digit() || is_identifier_start(ch)
+    ch == '(' || ch == '{' || ch.is_ascii_digit() || is_identifier_start(ch)
 }
 
 fn is_identifier_start(ch: char) -> bool {
@@ -557,6 +593,26 @@ mod tests {
         assert_eq!(numerator_span, Span::new(6, 7));
         assert_eq!(denominator, "2");
         assert_eq!(denominator_span, Span::new(9, 10));
+    }
+
+    #[test]
+    fn parses_power_expression_with_braced_exponent() {
+        let ParseOutcome::Parsed(expression) = Parser::parse_expression("x^{3}") else {
+            panic!("expected parse success");
+        };
+
+        let ConcreteExpressionKind::Binary {
+            operator,
+            operator_span,
+            ..
+        } = expression.kind
+        else {
+            panic!("expected binary power");
+        };
+
+        assert_eq!(operator, BinaryOperator::Power);
+        assert_eq!(operator_span, Span::new(1, 2));
+        assert_eq!(expression.span, Span::new(0, 5));
     }
 
     #[test]

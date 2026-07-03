@@ -1,0 +1,25 @@
+{
+  "name": "@socrates/symbolic-math-workspace",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "scripts": {
+    "build": "pnpm run build:wasm && pnpm run build:ts",
+    "build:ts": "pnpm --filter @socrates/math build",
+    "build:wasm": "pnpm --filter @socrates/math-wasm build",
+    "check": "pnpm run check:rust && pnpm run check:ts && pnpm run test:consumers",
+    "check:rust": "cargo fmt --all --check && CARGO_INCREMENTAL=0 cargo check --workspace && CARGO_INCREMENTAL=0 cargo clippy --workspace --all-targets -- -D warnings && CARGO_INCREMENTAL=0 cargo test --workspace && CARGO_INCREMENTAL=0 cargo check -p socrates-math-wasm --target wasm32-unknown-unknown",
+    "check:ts": "pnpm --filter @socrates/math typecheck && pnpm --filter @socrates/math build && pnpm --filter @socrates/math-wasm typecheck && pnpm --filter @socrates/consumer-exercises-spec typecheck && pnpm --filter @socrates/playground typecheck",
+    "playground:rust": "CARGO_INCREMENTAL=0 cargo run -p socrates-math-app --example playground",
+    "playground:rust:api": "CARGO_INCREMENTAL=0 cargo run -q -p socrates-math-app --example api --",
+    "playground:ts": "pnpm --filter @socrates/playground run start",
+    "test:consumers": "pnpm --filter @socrates/math build && pnpm --filter @socrates/consumer-exercises-spec test",
+    "typecheck": "pnpm run check:ts"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
+  }
+}

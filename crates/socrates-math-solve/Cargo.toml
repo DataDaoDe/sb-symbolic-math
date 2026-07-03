@@ -1,0 +1,14 @@
+[package]
+name = "socrates-math-solve"
+edition.workspace = true
+license.workspace = true
+version.workspace = true
+
+[dependencies]
+socrates-math-algebra = { path = "../socrates-math-algebra" }
+socrates-math-core = { path = "../socrates-math-core" }
+serde.workspace = true
+
+[dev-dependencies]
+socrates-math-elab = { path = "../socrates-math-elab" }
+socrates-math-syntax = { path = "../socrates-math-syntax" }

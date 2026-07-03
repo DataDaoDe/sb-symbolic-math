@@ -45,4 +45,11 @@ impl Context {
             hypotheses: self.hypotheses.clone(),
         }
     }
+
+    pub fn find_declaration(&self, name: &str) -> Option<&Declaration> {
+        self.declarations
+            .iter()
+            .rev()
+            .find(|declaration| declaration.name == name)
+    }
 }

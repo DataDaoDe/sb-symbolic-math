@@ -83,6 +83,7 @@ pub enum BinaryOperator {
     Add,
     Subtract,
     Multiply,
+    Power,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
