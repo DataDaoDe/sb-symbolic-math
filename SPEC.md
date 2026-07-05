@@ -798,6 +798,48 @@ A transformation MUST distinguish:
 
 Source spans alone MUST NOT serve as semantic identity.
 
+### 20.1 Rule targets
+
+Any public API that applies a named rule SHOULD accept an explicit target
+occurrence when the rule can apply to a proper subobject.
+
+A rule target MUST refer to semantic structure, not only to display text. The
+target may be accompanied by source-span information for UI highlighting, but
+the semantic occurrence path is authoritative.
+
+A target path MUST be interpreted relative to a specific mathematical state.
+If the state changes, previously issued target paths MUST NOT be reused unless
+they are translated through recorded derivation provenance or re-resolved
+against the new state.
+
+Applying a rule without an explicit target is permitted only when:
+
+- the rule applies to the entire state;
+- the rule has exactly one valid occurrence under the chosen policy; or
+- the API explicitly requests automatic target selection and reports the
+  selected occurrence.
+
+If multiple valid occurrences exist and no automatic selection policy is
+provided, the result MUST be ambiguous rather than silently selecting one.
+
+### 20.2 Rule applicability
+
+The system SHOULD expose a way to list applicable rules for a mathematical
+state and optional target occurrence.
+
+An applicability result SHOULD distinguish:
+
+```text
+Applicable
+ApplicableWithConditions
+NotApplicable
+AmbiguousTarget
+Unsupported
+```
+
+For a rule that is not applicable, the result SHOULD report a stable diagnostic
+or missing-condition identifier suitable for pedagogy.
+
 ## 21. Canonicalization, Normalization, Simplification, and Transformation
 
 These operations are distinct.
@@ -889,6 +931,38 @@ RewriteUsing(rule)
 
 A transformation MUST return the relation it established and its verified
 evidence.
+
+### 21.5 Manual rule application
+
+Manual rule application is a first-class transformation operation.
+
+Conceptual form:
+
+```text
+apply_rule(state, rule_id, target_occurrence, parameters, context, policy)
+```
+
+The result MUST include:
+
+- the previous state or state identifier;
+- the next state when application succeeds;
+- the requested rule identifier;
+- the selected occurrence;
+- instantiated parameters and substitutions;
+- side conditions and obligations;
+- the relation established;
+- verified proof evidence or an explicit non-verified status;
+- diagnostics for no-match, ambiguous target, unsupported rule, or failed side
+  conditions.
+
+Manual rule application MUST NOT be implemented as a string rewrite over
+rendered LaTeX.
+
+High-level algorithms, solvers, and simplifiers SHOULD be implemented as
+strategies that schedule the same rule applications exposed by the manual API.
+They MAY use compact certificates internally, but their public pedagogical
+derivations SHOULD still map back to replayable rule applications whenever
+practical.
 
 ## 22. Rewriting
 

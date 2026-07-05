@@ -43,6 +43,14 @@ export interface MathExpressionDto {
   latex: string;
 }
 
+export interface SetExpressionDto {
+  latex: string;
+}
+
+export interface SetStatementDto {
+  latex: string;
+}
+
 export interface NormalizeMathExpressionResponseDto {
   outcome: MathematicalOutcomeDto;
   normalized: MathExpressionDto | null;
@@ -55,6 +63,48 @@ export interface CompareMathExpressionsResponseDto {
   equal: boolean | null;
   left_normalized: MathExpressionDto | null;
   right_normalized: MathExpressionDto | null;
+  diagnostics: DiagnosticDto[];
+}
+
+export interface NormalizeSetExpressionResponseDto {
+  outcome: MathematicalOutcomeDto;
+  normalized: SetExpressionDto | null;
+  diagnostics: DiagnosticDto[];
+}
+
+export interface CompareSetExpressionsResponseDto {
+  outcome: MathematicalOutcomeDto;
+  relation: string;
+  equal: boolean | null;
+  left_normalized: SetExpressionDto | null;
+  right_normalized: SetExpressionDto | null;
+  diagnostics: DiagnosticDto[];
+}
+
+export interface EvaluateSetStatementResponseDto {
+  outcome: MathematicalOutcomeDto;
+  relation: string;
+  truth: boolean | null;
+  normalized: SetStatementDto | null;
+  diagnostics: DiagnosticDto[];
+}
+
+export interface EvaluateSetCardinalityResponseDto {
+  outcome: MathematicalOutcomeDto;
+  relation: string;
+  cardinality: number | null;
+  cardinality_latex: string | null;
+  normalized_set: SetExpressionDto | null;
+  diagnostics: DiagnosticDto[];
+}
+
+export interface EvaluateFiniteRelationPredicateResponseDto {
+  outcome: MathematicalOutcomeDto;
+  relation: string;
+  truth: boolean | null;
+  normalized_relation: SetExpressionDto | null;
+  normalized_domain: SetExpressionDto | null;
+  normalized_codomain: SetExpressionDto | null;
   diagnostics: DiagnosticDto[];
 }
 
@@ -72,6 +122,7 @@ export interface CompareNumericAnswerResponseDto {
 export interface MathDerivationStepDto {
   rule: string;
   reason: string;
+  target: RuleTargetDto | null;
   input_latex: string | null;
   output_latex: string | null;
 }
@@ -81,6 +132,42 @@ export interface TransformMathExpressionResponseDto {
   relation: string;
   result: MathExpressionDto | null;
   steps: MathDerivationStepDto[];
+  diagnostics: DiagnosticDto[];
+}
+
+export type RuleTargetDto =
+  | { kind: "whole" }
+  | { kind: "polynomial-term"; degree: number };
+
+export type RuleApplicabilityStatusDto =
+  | "applicable"
+  | "applicable-with-conditions"
+  | "not-applicable"
+  | "ambiguous-target"
+  | "unsupported";
+
+export interface ApplicableRuleDto {
+  rule: string;
+  status: RuleApplicabilityStatusDto;
+  relation: string;
+  target: RuleTargetDto | null;
+  reason: string;
+  required_conditions: string[];
+  concepts: string[];
+}
+
+export interface ListApplicableRulesResponseDto {
+  outcome: MathematicalOutcomeDto;
+  rules: ApplicableRuleDto[];
+  diagnostics: DiagnosticDto[];
+}
+
+export interface ApplyRuleResponseDto {
+  outcome: MathematicalOutcomeDto;
+  relation: string;
+  previous: MathExpressionDto | null;
+  result: MathExpressionDto | null;
+  step: MathDerivationStepDto | null;
   diagnostics: DiagnosticDto[];
 }
 
@@ -102,6 +189,32 @@ export interface WasmMathEngineBinding {
     inputFormat: string,
     variable: string,
   ): string;
+  normalizeSetExpression?(source: string, inputFormat: string): string;
+  compareSetExpressions?(
+    leftSource: string,
+    rightSource: string,
+    inputFormat: string,
+  ): string;
+  evaluateSetStatement?(source: string, inputFormat: string): string;
+  evaluateSetCardinality?(source: string, inputFormat: string): string;
+  evaluateRelationFrom?(
+    relationSource: string,
+    domainSource: string,
+    codomainSource: string,
+    inputFormat: string,
+  ): string;
+  evaluateFunctionFrom?(
+    relationSource: string,
+    domainSource: string,
+    codomainSource: string,
+    inputFormat: string,
+  ): string;
+  evaluateRelationProperty?(
+    relationSource: string,
+    setSource: string,
+    property: string,
+    inputFormat: string,
+  ): string;
   compareNumericAnswer?(
     submittedSource: string,
     expectedSource: string,
@@ -117,5 +230,18 @@ export interface WasmMathEngineBinding {
     source: string,
     inputFormat: string,
     variable: string,
+  ): string;
+  listApplicableMathExpressionRules?(
+    source: string,
+    inputFormat: string,
+    variable: string,
+    targetJson: string | null,
+  ): string;
+  applyMathExpressionRule?(
+    source: string,
+    inputFormat: string,
+    variable: string,
+    rule: string,
+    targetJson: string | null,
   ): string;
 }

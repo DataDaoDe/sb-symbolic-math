@@ -31,6 +31,7 @@ one universal simplifier. Instead, it provides:
 - explicit mathematical contexts and assumptions;
 - an extensible theory and domain-package system;
 - specialized symbolic computation engines;
+- a low-level, focus-aware rule application API;
 - checkable proofs and certificates;
 - a separate pedagogical reasoning layer.
 
@@ -93,6 +94,23 @@ evidence that records:
 - which assumptions were used;
 - which semantic relation was established;
 - how the result can be checked.
+
+### Focus-aware rule application
+
+Manual pedagogical work and automated algorithms use the same rule machinery.
+A caller can request that a specific rule be applied to a selected occurrence
+inside an expression, equation, matrix, proof goal, or other semantic object.
+
+High-level solvers and simplifiers are therefore strategy layers over the
+low-level rule API. They choose which verified rule to apply next, but they do
+not bypass the rule engine. This allows Socrates Academy to support guided
+workflows such as:
+
+- show the legal rules at this selected subexpression;
+- apply the selected rule here;
+- explain why a selected rule is not applicable here;
+- replay every transformation made by an automatic solver;
+- compare a learner's chosen step with the engine's valid next moves.
 
 ### Small trusted core
 
@@ -207,6 +225,8 @@ Symbolic Math is designed to provide:
 - explicit contexts, assumptions, and side conditions;
 - exact evaluation and partial evaluation;
 - certified numerical approximation;
+- low-level rule application to selected semantic occurrences;
+- listing applicable rules for a selected occurrence;
 - goal-directed normalization and transformation;
 - comparison under explicitly selected mathematical relations;
 - solving with candidate verification and completeness information;

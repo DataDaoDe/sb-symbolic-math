@@ -548,6 +548,103 @@ Feature: Replay proof graphs
     And the incompatible rule identifier and version are reported
 ```
 
+@rules @pedagogy
+## Feature: Apply A Rule To A Selected Occurrence
+
+Pedagogical systems need to let a learner or author select one part of a
+mathematical state and apply one rule there. Automatic solvers use the same
+rule machinery, but choose targets and rules through a strategy.
+
+```gherkin
+Feature: Apply a rule to a selected occurrence
+
+  Scenario: Apply distribution only at the selected occurrence
+    Given the expression "2(x + 1) + 3(x + 1)"
+    And the left product "2(x + 1)" is selected by semantic occurrence path
+    When I apply rule "algebra.distribute.mul-over-add" to the selected occurrence
+    Then the result is Proven
+    And the expression becomes "2x + 2 + 3(x + 1)"
+    And the unchanged right product is still grouped as "3(x + 1)"
+    And the derivation step records the selected occurrence
+    And the proof records the distributive rule identifier
+
+  Scenario: Report ambiguity when a target is required
+    Given the expression "2(x + 1) + 3(x + 1)"
+    When I apply rule "algebra.distribute.mul-over-add" without a target
+    And automatic target selection is not requested
+    Then the result is "Ambiguous"
+    And both distributable occurrences are reported
+    And no transformation is silently selected
+
+  Scenario: Explain why a rule cannot apply at the selected occurrence
+    Given the expression "x + 1"
+    And the occurrence "x" is selected
+    When I apply rule "calculus.derivative.power-rule" to the selected occurrence
+    Then the result is "NotApplicable" or "Unknown"
+    And the diagnostic identifies that the selected state is not a derivative goal
+    And the original expression is unchanged
+
+  Scenario: Apply a rule with a side condition at the selected occurrence
+    Given the expression "x / x + y / y"
+    And the occurrence "x / x" is selected
+    And the context proves "x != 0"
+    When I apply rule "field.cancel.same-nonzero-factor" to the selected occurrence
+    Then the result is Proven
+    And the expression becomes "1 + y / y"
+    And the proof records the nonzero assumption for "x"
+    And it does not claim any condition for "y"
+```
+
+@rules @pedagogy
+## Feature: List Applicable Rules At A Selected Occurrence
+
+```gherkin
+Feature: List applicable rules at a selected occurrence
+
+  Scenario: List rules for a product over a sum
+    Given the expression "2(x + 1)"
+    And the whole expression is selected
+    When I ask for applicable rules
+    Then "algebra.distribute.mul-over-add" is listed as applicable
+    And the result includes the relation the rule would establish
+    And the result includes the pedagogical concepts associated with the rule
+
+  Scenario: Distinguish conditional rules from unconditional rules
+    Given the expression "x / x"
+    And the whole expression is selected
+    When I ask for applicable rules
+    Then cancellation is listed as conditional or applicable with conditions
+    And the required condition "x != 0" is reported
+
+  Scenario: Exclude rules that only apply elsewhere
+    Given the expression "x + 2(y + 1)"
+    And the occurrence "x" is selected
+    When I ask for applicable rules
+    Then distribution is not listed for the selected occurrence
+    And the occurrence "2(y + 1)" may be reported as a separate available target
+```
+
+@rules @solver
+## Feature: Build Automatic Strategies From Rule Applications
+
+```gherkin
+Feature: Build automatic strategies from rule applications
+
+  Scenario: Automatic solving replays as manual rule applications
+    Given the equation "3(x - 2) + 4 = 2x + 9"
+    When I solve it with the instructional linear-equation strategy
+    Then every public derivation step references a rule identifier
+    And every step records the occurrence selected by the strategy
+    And replaying those rule applications reaches the same final solution set
+
+  Scenario: A manual path may differ from the default strategy
+    Given the equation "x + 4 = 9"
+    When the default strategy would subtract "4" from both sides
+    And a learner instead applies a valid add-opposite rule to both sides
+    Then the manual step is accepted as valid
+    And the strategy difference is reported separately from mathematical validity
+```
+
 @certificate @future
 ## Feature: Verify Domain-Specific Certificates
 
@@ -680,7 +777,8 @@ Feature: Differentiate and integrate polynomial expressions
     Then the result is Proven
     And the relation is "calculus.derivative"
     And the result LaTeX is "3x^{2} + 2"
-    And a derivation step records the polynomial derivative power rule
+    And one derivation step records the power rule applied to "x^3"
+    And one derivation step records the power rule applied to "2x"
 
   Scenario: Integrate a polynomial expression
     When I integrate the expression "x^3" with variable "x"
@@ -693,6 +791,32 @@ Feature: Differentiate and integrate polynomial expressions
     When I integrate a polynomial expression
     Then the returned expression is one antiderivative
     And arbitrary constants are left to a future richer expression model
+
+  Scenario: Differentiate a negative power with the rational power rule
+    When I differentiate the expression "x^-1" with variable "x"
+    Then the result is Proven
+    And the relation is "calculus.derivative"
+    And the result LaTeX is "-x^{-2}"
+    And a derivation step records the rational power rule
+
+  Scenario: Differentiate a fractional power with the rational power rule
+    When I differentiate the expression "x^{\frac{1}{2}}" with variable "x"
+    Then the result is Proven
+    And the relation is "calculus.derivative"
+    And the result LaTeX is "\frac{1}{2}x^{-\frac{1}{2}}"
+    And a derivation step records the rational power rule
+
+  Scenario: Integrate a fractional power with the rational power rule
+    When I integrate the expression "x^{\frac{1}{2}}" with variable "x"
+    Then the result is Proven
+    And the relation is "calculus.antiderivative"
+    And the result LaTeX is "\frac{2}{3}x^{\frac{3}{2}}"
+    And a derivation step records the rational antiderivative power rule
+
+  Scenario: Refuse the power rule for the antiderivative of x^-1
+    When I integrate the expression "x^-1" with variable "x"
+    Then the result is Unknown
+    And the diagnostic explains that the logarithm rule is required
 ```
 
 @evaluation @slice-1
@@ -719,6 +843,115 @@ Feature: Evaluate expressions exactly
     Given the expression "-\frac{4}{6}"
     When I evaluate the expression
     Then the result is the exact rational "-2/3"
+```
+
+@future @set-theory @consumer-exercises
+## Feature: Grade Naive Set Theory Exercises
+
+These scenarios define the exercise surface needed by the Socrates Academy
+naive set theory course. They are consumer-contract targets until the
+set-theory engine APIs are implemented.
+
+```gherkin
+Feature: Grade naive set theory exercises
+
+  Scenario: Normalize a finite roster set
+    Given the student enters "{3, 1, 2, 2}"
+    When I normalize it as a finite set
+    Then the normalized LaTeX is "{1,2,3}"
+    And duplicate elements are removed
+    And element order is not mathematically significant
+
+  Scenario: Evaluate membership and non-membership
+    Given the statement "2 \in {1,2,3}"
+    When I evaluate the statement
+    Then the result is Proven true
+    And the feedback explains membership in a roster set
+
+  Scenario: Distinguish an element from a singleton set
+    Given the statement "{2} \in {1,2,3}"
+    When I evaluate the statement
+    Then the result is Proven false
+    And the feedback explains that "2" and "{2}" are different objects
+
+  Scenario: Evaluate subset inclusion
+    Given the statement "{1,2} \subseteq {1,2,3}"
+    When I evaluate the statement
+    Then the result is Proven true
+    And the feedback explains that every element of the first set is in the second
+
+  Scenario: Compute finite set operations
+    Given the expression "{1,2} \cup {2,3}"
+    When I simplify it as a set expression
+    Then the normalized result is "{1,2,3}"
+    And the derivation records the union rule
+
+  Scenario: Compute finite intersections and differences
+    Given finite roster sets A and B
+    When I simplify "A \cap B" or "A \setminus B"
+    Then the result is a normalized finite set
+    And the explanation identifies which elements were kept or removed
+
+  Scenario: Compute finite cardinality
+    Given the set "{a,b,b,c}"
+    When I compute its cardinality
+    Then the result is "3"
+    And duplicate roster entries are not counted twice
+
+  Scenario: List a power set
+    Given the set "{a,b}"
+    When I compute its power set
+    Then the result contains "\varnothing", "{a}", "{b}", and "{a,b}"
+    And no subset is omitted
+
+  Scenario: List a Cartesian product
+    Given the sets "{1,2}" and "{a,b}"
+    When I compute their Cartesian product
+    Then the result contains "(1,a)", "(1,b)", "(2,a)", and "(2,b)"
+    And the feedback explains that ordered pairs are not ordinary two-element sets
+
+  Scenario: Evaluate bounded set-builder notation
+    Given the expression "{x \in {1,2,3,4} \mid x is even}"
+    When I evaluate the bounded set-builder expression
+    Then the result is "{2,4}"
+    And the domain restriction is explicit
+    And the supported finite predicates include equality, inequality, numeric comparisons, membership, even or odd, and divisibility
+
+  Scenario: Verify a set identity on a finite universe
+    Given a finite universe U and finite sets A and B
+    When I compare "(A \cup B)^c" and "A^c \cap B^c"
+    Then the result is Proven equivalent relative to U
+    And each complement records its universe
+
+  Scenario: Translate a Venn region
+    Given the region inside A but outside B
+    When the student enters "A \setminus B"
+    Then the answer is accepted
+    And the equivalent answer "A \cap B^c" is also accepted when a universe is declared
+
+  Scenario: Classify relation properties
+    Given a finite relation on a finite set
+    When I ask whether it is reflexive, symmetric, antisymmetric, or transitive
+    Then the result is Proven true or Proven false
+    And counterexamples are reported when the property fails
+
+  Scenario: Decide whether a relation is a function
+    Given a finite relation from A to B
+    When I ask whether it is a function
+    Then the result checks that every input has exactly one output
+    And duplicate or conflicting outputs are explained
+
+  Scenario: Evaluate indexed unions and intersections
+    Given a finite indexed family of finite sets
+    When I evaluate an indexed union or indexed intersection
+    Then the result is a normalized finite set
+    And the feedback explains the quantifier condition over the index set
+
+  Scenario: Validate an extensionality proof step
+    Given a set equality goal
+    When the student proves mutual inclusion
+    Then the proof step is accepted as an application of extensionality
+    And each subset obligation remains inspectable
 ```
 
 @evaluation @slice-1

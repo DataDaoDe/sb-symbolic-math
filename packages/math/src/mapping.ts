@@ -1,19 +1,39 @@
 import type {
+  ApplicableRuleDto,
+  ApplyRuleResponseDto,
   CompareEquationSolutionSetsResponseDto,
   CompareMathExpressionsResponseDto,
   CompareNumericAnswerResponseDto,
+  CompareSetExpressionsResponseDto,
+  EvaluateFiniteRelationPredicateResponseDto,
+  EvaluateSetCardinalityResponseDto,
+  EvaluateSetStatementResponseDto,
   ExactValueDto,
+  ListApplicableRulesResponseDto,
   NormalizeMathExpressionResponseDto,
+  NormalizeSetExpressionResponseDto,
+  RuleApplicabilityStatusDto,
+  RuleTargetDto,
   SolutionSetDto,
   SolveLinearEquationResponseDto,
   TransformMathExpressionResponseDto,
 } from "./dto.js";
 import type {
+  ApplicableRule,
+  ApplyMathExpressionRuleResult,
   CompareEquationSolutionSetsResult,
   CompareMathExpressionsResult,
   CompareNumericAnswerResult,
+  CompareSetExpressionsResult,
+  EvaluateFiniteRelationPredicateResult,
+  EvaluateSetCardinalityResult,
+  EvaluateSetStatementResult,
   ExactValue,
+  ListApplicableMathExpressionRulesResult,
   NormalizeMathExpressionResult,
+  NormalizeSetExpressionResult,
+  RuleApplicabilityStatus,
+  RuleTarget,
   SolutionSet,
   SolveLinearEquationResult,
   TransformMathExpressionResult,
@@ -74,6 +94,87 @@ export function mapCompareMathExpressionsResponse(
   };
 }
 
+export function mapNormalizeSetExpressionResponse(
+  dto: NormalizeSetExpressionResponseDto,
+): NormalizeSetExpressionResult {
+  return {
+    outcome: dto.outcome,
+    normalized: dto.normalized,
+    diagnostics: dto.diagnostics,
+  };
+}
+
+export function mapCompareSetExpressionsResponse(
+  dto: CompareSetExpressionsResponseDto,
+): CompareSetExpressionsResult {
+  return {
+    outcome: dto.outcome,
+    relation: "set.extensional_equal",
+    equal: dto.equal,
+    leftNormalized: dto.left_normalized,
+    rightNormalized: dto.right_normalized,
+    diagnostics: dto.diagnostics,
+  };
+}
+
+export function mapEvaluateSetStatementResponse(
+  dto: EvaluateSetStatementResponseDto,
+): EvaluateSetStatementResult {
+  return {
+    outcome: dto.outcome,
+    relation: "logic.truth",
+    truth: dto.truth,
+    normalized: dto.normalized,
+    diagnostics: dto.diagnostics,
+  };
+}
+
+export function mapEvaluateSetCardinalityResponse(
+  dto: EvaluateSetCardinalityResponseDto,
+): EvaluateSetCardinalityResult {
+  return {
+    outcome: dto.outcome,
+    relation: "set.cardinality",
+    cardinality: dto.cardinality,
+    cardinalityLatex: dto.cardinality_latex,
+    normalizedSet: dto.normalized_set,
+    diagnostics: dto.diagnostics,
+  };
+}
+
+export function mapEvaluateFiniteRelationPredicateResponse(
+  dto: EvaluateFiniteRelationPredicateResponseDto,
+): EvaluateFiniteRelationPredicateResult {
+  return {
+    outcome: dto.outcome,
+    relation: mapFiniteRelationPredicateRelation(dto.relation),
+    truth: dto.truth,
+    normalizedRelation: dto.normalized_relation,
+    normalizedDomain: dto.normalized_domain,
+    normalizedCodomain: dto.normalized_codomain,
+    diagnostics: dto.diagnostics,
+  };
+}
+
+function mapFiniteRelationPredicateRelation(
+  relation: string,
+): EvaluateFiniteRelationPredicateResult["relation"] {
+  switch (relation) {
+    case "function.from":
+      return "function.from";
+    case "relation.reflexive":
+      return "relation.reflexive";
+    case "relation.symmetric":
+      return "relation.symmetric";
+    case "relation.antisymmetric":
+      return "relation.antisymmetric";
+    case "relation.transitive":
+      return "relation.transitive";
+    default:
+      return "relation.from";
+  }
+}
+
 export function mapCompareNumericAnswerResponse(
   dto: CompareNumericAnswerResponseDto,
 ): CompareNumericAnswerResult {
@@ -102,11 +203,104 @@ export function mapTransformMathExpressionResponse(
     steps: dto.steps.map((step) => ({
       rule: step.rule,
       reason: step.reason,
+      target: step.target ? mapRuleTarget(step.target) : null,
       inputLatex: step.input_latex,
       outputLatex: step.output_latex,
     })),
     diagnostics: dto.diagnostics,
   };
+}
+
+export function mapListApplicableRulesResponse(
+  dto: ListApplicableRulesResponseDto,
+): ListApplicableMathExpressionRulesResult {
+  return {
+    outcome: dto.outcome,
+    rules: dto.rules.map(mapApplicableRule),
+    diagnostics: dto.diagnostics,
+  };
+}
+
+export function mapApplyRuleResponse(
+  dto: ApplyRuleResponseDto,
+): ApplyMathExpressionRuleResult {
+  return {
+    outcome: dto.outcome,
+    relation: mapRuleApplicationRelation(dto.relation),
+    previous: dto.previous,
+    result: dto.result,
+    step: dto.step
+      ? {
+          rule: dto.step.rule,
+          reason: dto.step.reason,
+          target: dto.step.target ? mapRuleTarget(dto.step.target) : null,
+          inputLatex: dto.step.input_latex,
+          outputLatex: dto.step.output_latex,
+        }
+      : null,
+    diagnostics: dto.diagnostics,
+  };
+}
+
+function mapRuleApplicationRelation(
+  relation: string,
+): ApplyMathExpressionRuleResult["relation"] {
+  if (relation === "calculus.derivative") {
+    return "calculus.derivative";
+  }
+
+  if (relation === "calculus.antiderivative") {
+    return "calculus.antiderivative";
+  }
+
+  return "rule.application";
+}
+
+export function toRuleTargetDto(target: RuleTarget): RuleTargetDto {
+  switch (target.kind) {
+    case "whole":
+      return { kind: "whole" };
+    case "polynomialTerm":
+      return { kind: "polynomial-term", degree: target.degree };
+  }
+}
+
+function mapApplicableRule(dto: ApplicableRuleDto): ApplicableRule {
+  return {
+    rule: dto.rule,
+    status: mapRuleApplicabilityStatus(dto.status),
+    relation: dto.relation,
+    target: dto.target ? mapRuleTarget(dto.target) : null,
+    reason: dto.reason,
+    requiredConditions: dto.required_conditions,
+    concepts: dto.concepts,
+  };
+}
+
+function mapRuleTarget(dto: RuleTargetDto): RuleTarget {
+  switch (dto.kind) {
+    case "whole":
+      return { kind: "whole" };
+    case "polynomial-term":
+      return { kind: "polynomialTerm", degree: dto.degree };
+  }
+}
+
+function mapRuleApplicabilityStatus(
+  status: RuleApplicabilityStatusDto,
+): RuleApplicabilityStatus {
+  switch (status) {
+    case "applicable":
+      return "applicable";
+    case "applicable-with-conditions":
+      return "applicableWithConditions";
+    case "not-applicable":
+      return "notApplicable";
+    case "ambiguous-target":
+      return "ambiguousTarget";
+    case "unsupported":
+      return "unsupported";
+  }
 }
 
 function mapSolutionSet(dto: SolutionSetDto): SolutionSet {

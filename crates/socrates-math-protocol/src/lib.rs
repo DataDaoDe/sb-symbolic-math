@@ -85,6 +85,16 @@ pub struct MathExpressionDto {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SetExpressionDto {
+    pub latex: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SetStatementDto {
+    pub latex: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct NormalizeMathExpressionResponseDto {
     pub outcome: MathematicalOutcomeKindDto,
     pub normalized: Option<MathExpressionDto>,
@@ -98,6 +108,53 @@ pub struct CompareMathExpressionsResponseDto {
     pub equal: Option<bool>,
     pub left_normalized: Option<MathExpressionDto>,
     pub right_normalized: Option<MathExpressionDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct NormalizeSetExpressionResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub normalized: Option<SetExpressionDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CompareSetExpressionsResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub equal: Option<bool>,
+    pub left_normalized: Option<SetExpressionDto>,
+    pub right_normalized: Option<SetExpressionDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EvaluateSetStatementResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub truth: Option<bool>,
+    pub normalized: Option<SetStatementDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EvaluateSetCardinalityResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub cardinality: Option<u64>,
+    pub cardinality_latex: Option<String>,
+    pub normalized_set: Option<SetExpressionDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EvaluateFiniteRelationPredicateResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub truth: Option<bool>,
+    pub normalized_relation: Option<SetExpressionDto>,
+    pub normalized_domain: Option<SetExpressionDto>,
+    pub normalized_codomain: Option<SetExpressionDto>,
     pub diagnostics: Vec<DiagnosticDto>,
 }
 
@@ -117,6 +174,7 @@ pub struct CompareNumericAnswerResponseDto {
 pub struct MathDerivationStepDto {
     pub rule: String,
     pub reason: String,
+    pub target: Option<RuleTargetDto>,
     pub input_latex: Option<String>,
     pub output_latex: Option<String>,
 }
@@ -127,6 +185,53 @@ pub struct TransformMathExpressionResponseDto {
     pub relation: String,
     pub result: Option<MathExpressionDto>,
     pub steps: Vec<MathDerivationStepDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind")]
+pub enum RuleTargetDto {
+    #[serde(rename = "whole")]
+    Whole,
+    #[serde(rename = "polynomial-term")]
+    PolynomialTerm { degree: u32 },
+}
+
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RuleApplicabilityStatusDto {
+    Applicable,
+    ApplicableWithConditions,
+    NotApplicable,
+    AmbiguousTarget,
+    Unsupported,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApplicableRuleDto {
+    pub rule: String,
+    pub status: RuleApplicabilityStatusDto,
+    pub relation: String,
+    pub target: Option<RuleTargetDto>,
+    pub reason: String,
+    pub required_conditions: Vec<String>,
+    pub concepts: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ListApplicableRulesResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub rules: Vec<ApplicableRuleDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApplyRuleResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub previous: Option<MathExpressionDto>,
+    pub result: Option<MathExpressionDto>,
+    pub step: Option<MathDerivationStepDto>,
     pub diagnostics: Vec<DiagnosticDto>,
 }
 

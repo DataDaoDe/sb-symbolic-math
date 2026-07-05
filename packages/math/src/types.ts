@@ -56,6 +56,16 @@ export interface MathExpression {
   latex: string;
 }
 
+export type SetExpressionInputFormat = "latex";
+
+export interface SetExpression {
+  latex: string;
+}
+
+export interface SetStatement {
+  latex: string;
+}
+
 export interface NormalizeMathExpressionRequest {
   expression: string;
   inputFormat: MathExpressionInputFormat;
@@ -84,6 +94,95 @@ export interface CompareMathExpressionsResult {
   diagnostics: MathDiagnostic[];
 }
 
+export interface NormalizeSetExpressionRequest {
+  expression: string;
+  inputFormat: SetExpressionInputFormat;
+}
+
+export interface NormalizeSetExpressionResult {
+  outcome: MathematicalOutcome;
+  normalized: SetExpression | null;
+  diagnostics: MathDiagnostic[];
+}
+
+export interface CompareSetExpressionsRequest {
+  leftExpression: string;
+  rightExpression: string;
+  inputFormat: SetExpressionInputFormat;
+}
+
+export interface CompareSetExpressionsResult {
+  outcome: MathematicalOutcome;
+  relation: "set.extensional_equal";
+  equal: boolean | null;
+  leftNormalized: SetExpression | null;
+  rightNormalized: SetExpression | null;
+  diagnostics: MathDiagnostic[];
+}
+
+export interface EvaluateSetStatementRequest {
+  statement: string;
+  inputFormat: SetExpressionInputFormat;
+}
+
+export interface EvaluateSetStatementResult {
+  outcome: MathematicalOutcome;
+  relation: "logic.truth";
+  truth: boolean | null;
+  normalized: SetStatement | null;
+  diagnostics: MathDiagnostic[];
+}
+
+export interface EvaluateSetCardinalityRequest {
+  expression: string;
+  inputFormat: SetExpressionInputFormat;
+}
+
+export interface EvaluateSetCardinalityResult {
+  outcome: MathematicalOutcome;
+  relation: "set.cardinality";
+  cardinality: number | null;
+  cardinalityLatex: string | null;
+  normalizedSet: SetExpression | null;
+  diagnostics: MathDiagnostic[];
+}
+
+export interface EvaluateFiniteRelationPredicateRequest {
+  relationExpression: string;
+  domainExpression: string;
+  codomainExpression: string;
+  inputFormat: SetExpressionInputFormat;
+}
+
+export interface EvaluateFiniteRelationPredicateResult {
+  outcome: MathematicalOutcome;
+  relation:
+    | "relation.from"
+    | "function.from"
+    | "relation.reflexive"
+    | "relation.symmetric"
+    | "relation.antisymmetric"
+    | "relation.transitive";
+  truth: boolean | null;
+  normalizedRelation: SetExpression | null;
+  normalizedDomain: SetExpression | null;
+  normalizedCodomain: SetExpression | null;
+  diagnostics: MathDiagnostic[];
+}
+
+export type FiniteRelationProperty =
+  | "reflexive"
+  | "symmetric"
+  | "antisymmetric"
+  | "transitive";
+
+export interface EvaluateFiniteRelationPropertyRequest {
+  relationExpression: string;
+  setExpression: string;
+  property: FiniteRelationProperty;
+  inputFormat: SetExpressionInputFormat;
+}
+
 export interface CompareNumericAnswerRequest {
   submitted: string;
   expected: string;
@@ -105,6 +204,7 @@ export interface CompareNumericAnswerResult {
 export interface MathDerivationStep {
   rule: string;
   reason: string;
+  target: RuleTarget | null;
   inputLatex: string | null;
   outputLatex: string | null;
 }
@@ -120,6 +220,57 @@ export interface TransformMathExpressionResult {
   relation: "calculus.derivative" | "calculus.antiderivative";
   result: MathExpression | null;
   steps: MathDerivationStep[];
+  diagnostics: MathDiagnostic[];
+}
+
+export type RuleTarget =
+  | { kind: "whole" }
+  | { kind: "polynomialTerm"; degree: number };
+
+export type RuleApplicabilityStatus =
+  | "applicable"
+  | "applicableWithConditions"
+  | "notApplicable"
+  | "ambiguousTarget"
+  | "unsupported";
+
+export interface ApplicableRule {
+  rule: string;
+  status: RuleApplicabilityStatus;
+  relation: string;
+  target: RuleTarget | null;
+  reason: string;
+  requiredConditions: string[];
+  concepts: string[];
+}
+
+export interface ListApplicableMathExpressionRulesRequest {
+  expression: string;
+  inputFormat: MathExpressionInputFormat;
+  variable: string;
+  target?: RuleTarget | null;
+}
+
+export interface ListApplicableMathExpressionRulesResult {
+  outcome: MathematicalOutcome;
+  rules: ApplicableRule[];
+  diagnostics: MathDiagnostic[];
+}
+
+export interface ApplyMathExpressionRuleRequest {
+  expression: string;
+  inputFormat: MathExpressionInputFormat;
+  variable: string;
+  rule: string;
+  target?: RuleTarget | null;
+}
+
+export interface ApplyMathExpressionRuleResult {
+  outcome: MathematicalOutcome;
+  relation: "calculus.derivative" | "calculus.antiderivative" | "rule.application";
+  previous: MathExpression | null;
+  result: MathExpression | null;
+  step: MathDerivationStep | null;
   diagnostics: MathDiagnostic[];
 }
 
@@ -140,6 +291,34 @@ export interface MathEngine {
     request: CompareMathExpressionsRequest,
   ): CompareMathExpressionsResult;
 
+  normalizeSetExpression(
+    request: NormalizeSetExpressionRequest,
+  ): NormalizeSetExpressionResult;
+
+  compareSetExpressions(
+    request: CompareSetExpressionsRequest,
+  ): CompareSetExpressionsResult;
+
+  evaluateSetStatement(
+    request: EvaluateSetStatementRequest,
+  ): EvaluateSetStatementResult;
+
+  evaluateSetCardinality(
+    request: EvaluateSetCardinalityRequest,
+  ): EvaluateSetCardinalityResult;
+
+  evaluateRelationFrom(
+    request: EvaluateFiniteRelationPredicateRequest,
+  ): EvaluateFiniteRelationPredicateResult;
+
+  evaluateFunctionFrom(
+    request: EvaluateFiniteRelationPredicateRequest,
+  ): EvaluateFiniteRelationPredicateResult;
+
+  evaluateRelationProperty(
+    request: EvaluateFiniteRelationPropertyRequest,
+  ): EvaluateFiniteRelationPredicateResult;
+
   compareNumericAnswer(
     request: CompareNumericAnswerRequest,
   ): CompareNumericAnswerResult;
@@ -151,4 +330,12 @@ export interface MathEngine {
   integrateMathExpression(
     request: TransformMathExpressionRequest,
   ): TransformMathExpressionResult;
+
+  listApplicableMathExpressionRules(
+    request: ListApplicableMathExpressionRulesRequest,
+  ): ListApplicableMathExpressionRulesResult;
+
+  applyMathExpressionRule(
+    request: ApplyMathExpressionRuleRequest,
+  ): ApplyMathExpressionRuleResult;
 }

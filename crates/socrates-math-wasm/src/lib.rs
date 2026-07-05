@@ -49,6 +49,102 @@ impl WasmMathEngine {
         .map_err(|error| JsValue::from_str(&error.to_string()))
     }
 
+    #[wasm_bindgen(js_name = normalizeSetExpression)]
+    pub fn normalize_set_expression(
+        &self,
+        source: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::normalize_set_expression(source, input_format))
+            .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = compareSetExpressions)]
+    pub fn compare_set_expressions(
+        &self,
+        left_source: &str,
+        right_source: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::compare_set_expressions(
+            left_source,
+            right_source,
+            input_format,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = evaluateSetStatement)]
+    pub fn evaluate_set_statement(
+        &self,
+        source: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::evaluate_set_statement(source, input_format))
+            .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = evaluateSetCardinality)]
+    pub fn evaluate_set_cardinality(
+        &self,
+        source: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::evaluate_set_cardinality(source, input_format))
+            .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = evaluateRelationFrom)]
+    pub fn evaluate_relation_from(
+        &self,
+        relation_source: &str,
+        domain_source: &str,
+        codomain_source: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::evaluate_relation_from(
+            relation_source,
+            domain_source,
+            codomain_source,
+            input_format,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = evaluateFunctionFrom)]
+    pub fn evaluate_function_from(
+        &self,
+        relation_source: &str,
+        domain_source: &str,
+        codomain_source: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::evaluate_function_from(
+            relation_source,
+            domain_source,
+            codomain_source,
+            input_format,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = evaluateRelationProperty)]
+    pub fn evaluate_relation_property(
+        &self,
+        relation_source: &str,
+        set_source: &str,
+        property: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::evaluate_relation_property(
+            relation_source,
+            set_source,
+            property,
+            input_format,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
     #[wasm_bindgen(js_name = compareNumericAnswer)]
     pub fn compare_numeric_answer(
         &self,
@@ -96,6 +192,46 @@ impl WasmMathEngine {
         .map_err(|error| JsValue::from_str(&error.to_string()))
     }
 
+    #[wasm_bindgen(js_name = listApplicableMathExpressionRules)]
+    pub fn list_applicable_math_expression_rules(
+        &self,
+        source: &str,
+        input_format: &str,
+        variable: &str,
+        target_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        let target = parse_optional_rule_target(target_json)?;
+
+        serde_json::to_string(&MathEngine::list_applicable_math_expression_rules(
+            source,
+            input_format,
+            variable,
+            target,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = applyMathExpressionRule)]
+    pub fn apply_math_expression_rule(
+        &self,
+        source: &str,
+        input_format: &str,
+        variable: &str,
+        rule: &str,
+        target_json: Option<String>,
+    ) -> Result<String, JsValue> {
+        let target = parse_optional_rule_target(target_json)?;
+
+        serde_json::to_string(&MathEngine::apply_math_expression_rule(
+            source,
+            input_format,
+            variable,
+            rule,
+            target,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
     #[wasm_bindgen(js_name = compareEquationSolutionSets)]
     pub fn compare_equation_solution_sets(
         &self,
@@ -110,6 +246,16 @@ impl WasmMathEngine {
         ))
         .map_err(|error| JsValue::from_str(&error.to_string()))
     }
+}
+
+fn parse_optional_rule_target(
+    target_json: Option<String>,
+) -> Result<Option<socrates_math_protocol::RuleTargetDto>, JsValue> {
+    target_json
+        .map(|json| {
+            serde_json::from_str(&json).map_err(|error| JsValue::from_str(&error.to_string()))
+        })
+        .transpose()
 }
 
 impl Default for WasmMathEngine {

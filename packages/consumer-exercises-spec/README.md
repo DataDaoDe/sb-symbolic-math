@@ -22,3 +22,9 @@ Covered exercise shapes:
   comparison is between expression values/forms such as `2(x + 1)` and `2x + 2`.
 - `numeric_answer`: compares numeric LaTeX input against an expected numeric
   value with an absolute tolerance.
+- `naive_set_theory`: currently a forward-looking consumer contract for the set
+  theory course. It catalogs the exercise types the engine must eventually
+  support: finite set normalization, membership, subset claims, set operations,
+  cardinality, power sets, Cartesian products, bounded set-builder notation,
+  Venn-region translation, identities, relations, functions, indexed families,
+  and proof-step validation.
