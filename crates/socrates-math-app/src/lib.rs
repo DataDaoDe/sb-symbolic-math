@@ -12,8 +12,8 @@ use socrates_math_protocol::{
     EvaluateSetCardinalityResponseDto, EvaluateSetStatementResponseDto,
     ListApplicableRulesResponseDto, MathDerivationStepDto, MathExpressionDto,
     MathematicalOutcomeKindDto, NormalizeMathExpressionResponseDto,
-    NormalizeSetExpressionResponseDto, RuleApplicabilityStatusDto, RuleTargetDto, SetExpressionDto,
-    SetStatementDto, SolutionSetDto, SolveLinearEquationResponseDto,
+    NormalizeSetExpressionResponseDto, RuleApplicabilityStatusDto, RuleTargetDto, SetBindingDto,
+    SetExpressionDto, SetStatementDto, SolutionSetDto, SolveLinearEquationResponseDto,
     TransformMathExpressionResponseDto,
 };
 use socrates_math_render::LatexRenderer;
@@ -183,6 +183,61 @@ impl MathEngine {
         }
     }
 
+    pub fn compare_set_expressions_in_context(
+        left_source: &str,
+        right_source: &str,
+        universe_source: &str,
+        bindings: &[SetBindingDto],
+        input_format: &str,
+    ) -> CompareSetExpressionsResponseDto {
+        let context = match finite_set_context(universe_source, bindings, input_format) {
+            Ok(value) => value,
+            Err(diagnostic) => return unknown_contextual_set_comparison(vec![diagnostic]),
+        };
+        let left = match normalize_finite_set_expression_with_context(
+            left_source,
+            input_format,
+            Some(&context),
+        ) {
+            Ok(value) => value,
+            Err(diagnostic) => return unknown_contextual_set_comparison(vec![diagnostic]),
+        };
+        let right = match normalize_finite_set_expression_with_context(
+            right_source,
+            input_format,
+            Some(&context),
+        ) {
+            Ok(value) => value,
+            Err(diagnostic) => return unknown_contextual_set_comparison(vec![diagnostic]),
+        };
+        let equal = left == right;
+
+        CompareSetExpressionsResponseDto {
+            outcome: if equal {
+                MathematicalOutcomeKindDto::Proven
+            } else {
+                MathematicalOutcomeKindDto::Disproven
+            },
+            relation: "set.extensional_equal.in_context".to_owned(),
+            equal: Some(equal),
+            left_normalized: Some(SetExpressionDto {
+                latex: left.to_latex(),
+            }),
+            right_normalized: Some(SetExpressionDto {
+                latex: right.to_latex(),
+            }),
+            diagnostics: if equal {
+                Vec::new()
+            } else {
+                vec![DiagnosticDto {
+                    code: "Set.NotExtensionallyEqualInContext".to_owned(),
+                    message: "sets have different normalized elements in the declared universe"
+                        .to_owned(),
+                }]
+            },
+        }
+    }
+
     pub fn evaluate_set_statement(
         source: &str,
         input_format: &str,
@@ -310,6 +365,35 @@ impl MathEngine {
                 "transitive" => finite_relation_is_transitive,
                 _ => unreachable!("unsupported relation properties returned above"),
             },
+        )
+    }
+
+    pub fn evaluate_relation_domain(
+        relation_source: &str,
+        input_format: &str,
+    ) -> NormalizeSetExpressionResponseDto {
+        evaluate_finite_relation_set_operation(
+            relation_source,
+            input_format,
+            finite_relation_domain,
+        )
+    }
+
+    pub fn evaluate_relation_range(
+        relation_source: &str,
+        input_format: &str,
+    ) -> NormalizeSetExpressionResponseDto {
+        evaluate_finite_relation_set_operation(relation_source, input_format, finite_relation_range)
+    }
+
+    pub fn evaluate_relation_inverse(
+        relation_source: &str,
+        input_format: &str,
+    ) -> NormalizeSetExpressionResponseDto {
+        evaluate_finite_relation_set_operation(
+            relation_source,
+            input_format,
+            finite_relation_inverse,
         )
     }
 
@@ -710,6 +794,12 @@ struct FiniteSetExpression {
     elements: BTreeSet<FiniteSetElement>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq)]
+struct FiniteSetContext {
+    universe: FiniteSetExpression,
+    bindings: BTreeMap<String, FiniteSetExpression>,
+}
+
 #[derive(Clone, Debug, Eq, Ord, PartialEq, PartialOrd)]
 enum FiniteSetElement {
     Atom(String),
@@ -788,6 +878,14 @@ fn normalize_finite_set_expression(
     source: &str,
     input_format: &str,
 ) -> Result<FiniteSetExpression, DiagnosticDto> {
+    normalize_finite_set_expression_with_context(source, input_format, None)
+}
+
+fn normalize_finite_set_expression_with_context(
+    source: &str,
+    input_format: &str,
+    context: Option<&FiniteSetContext>,
+) -> Result<FiniteSetExpression, DiagnosticDto> {
     if !input_format.eq_ignore_ascii_case("latex") {
         return Err(DiagnosticDto {
             code: "Set.UnsupportedInputFormat".to_owned(),
@@ -796,7 +894,7 @@ fn normalize_finite_set_expression(
     }
 
     let normalized_source = source.trim();
-    let (set, rest) = parse_finite_set_union_expression(normalized_source)?;
+    let (set, rest) = parse_finite_set_union_expression(normalized_source, context)?;
 
     if !rest.trim().is_empty() {
         return Err(DiagnosticDto {
@@ -808,10 +906,11 @@ fn normalize_finite_set_expression(
     Ok(set)
 }
 
-fn parse_finite_set_union_expression(
-    source: &str,
-) -> Result<(FiniteSetExpression, &str), DiagnosticDto> {
-    let (mut left, mut rest) = parse_finite_set_intersection_expression(source)?;
+fn parse_finite_set_union_expression<'a>(
+    source: &'a str,
+    context: Option<&FiniteSetContext>,
+) -> Result<(FiniteSetExpression, &'a str), DiagnosticDto> {
+    let (mut left, mut rest) = parse_finite_set_intersection_expression(source, context)?;
 
     loop {
         rest = rest.trim_start();
@@ -820,16 +919,18 @@ fn parse_finite_set_union_expression(
             return Ok((left, rest));
         };
 
-        let (right, after_right) = parse_finite_set_intersection_expression(after_operator)?;
+        let (right, after_right) =
+            parse_finite_set_intersection_expression(after_operator, context)?;
         left = apply_finite_set_binary_operator(left, right, FiniteSetBinaryOperator::Union);
         rest = after_right;
     }
 }
 
-fn parse_finite_set_intersection_expression(
-    source: &str,
-) -> Result<(FiniteSetExpression, &str), DiagnosticDto> {
-    let (mut left, mut rest) = parse_finite_set_product_expression(source)?;
+fn parse_finite_set_intersection_expression<'a>(
+    source: &'a str,
+    context: Option<&FiniteSetContext>,
+) -> Result<(FiniteSetExpression, &'a str), DiagnosticDto> {
+    let (mut left, mut rest) = parse_finite_set_product_expression(source, context)?;
 
     loop {
         rest = rest.trim_start();
@@ -838,16 +939,17 @@ fn parse_finite_set_intersection_expression(
             return Ok((left, rest));
         };
 
-        let (right, after_right) = parse_finite_set_product_expression(after_operator)?;
+        let (right, after_right) = parse_finite_set_product_expression(after_operator, context)?;
         left = apply_finite_set_binary_operator(left, right, FiniteSetBinaryOperator::Intersection);
         rest = after_right;
     }
 }
 
-fn parse_finite_set_product_expression(
-    source: &str,
-) -> Result<(FiniteSetExpression, &str), DiagnosticDto> {
-    let (mut left, mut rest) = parse_finite_set_difference_expression(source)?;
+fn parse_finite_set_product_expression<'a>(
+    source: &'a str,
+    context: Option<&FiniteSetContext>,
+) -> Result<(FiniteSetExpression, &'a str), DiagnosticDto> {
+    let (mut left, mut rest) = parse_finite_set_difference_expression(source, context)?;
 
     loop {
         rest = rest.trim_start();
@@ -859,7 +961,7 @@ fn parse_finite_set_product_expression(
             return Ok((left, rest));
         };
 
-        let (right, after_right) = parse_finite_set_difference_expression(after_operator)?;
+        let (right, after_right) = parse_finite_set_difference_expression(after_operator, context)?;
         left = apply_finite_set_binary_operator(
             left,
             right,
@@ -869,10 +971,11 @@ fn parse_finite_set_product_expression(
     }
 }
 
-fn parse_finite_set_difference_expression(
-    source: &str,
-) -> Result<(FiniteSetExpression, &str), DiagnosticDto> {
-    let (mut left, mut rest) = parse_finite_set_primary_expression(source)?;
+fn parse_finite_set_difference_expression<'a>(
+    source: &'a str,
+    context: Option<&FiniteSetContext>,
+) -> Result<(FiniteSetExpression, &'a str), DiagnosticDto> {
+    let (mut left, mut rest) = parse_finite_set_primary_expression(source, context)?;
 
     loop {
         rest = rest.trim_start();
@@ -885,20 +988,21 @@ fn parse_finite_set_difference_expression(
         };
 
         let (right, after_right) =
-            parse_finite_set_primary_expression(source_after_whitespace(after_operator))?;
+            parse_finite_set_primary_expression(source_after_whitespace(after_operator), context)?;
         left = apply_finite_set_binary_operator(left, right, FiniteSetBinaryOperator::Difference);
         rest = after_right;
     }
 }
 
-fn parse_finite_set_primary_expression(
-    source: &str,
-) -> Result<(FiniteSetExpression, &str), DiagnosticDto> {
+fn parse_finite_set_primary_expression<'a>(
+    source: &'a str,
+    context: Option<&FiniteSetContext>,
+) -> Result<(FiniteSetExpression, &'a str), DiagnosticDto> {
     let source = source.trim_start();
 
-    if let Some(after_command) = source.strip_prefix("\\mathcal{P}") {
+    let (mut set, mut rest) = if let Some(after_command) = source.strip_prefix("\\mathcal{P}") {
         let (argument, rest) = extract_parenthesized_argument(after_command)?;
-        let (set, argument_rest) = parse_finite_set_union_expression(argument)?;
+        let (set, argument_rest) = parse_finite_set_union_expression(argument, context)?;
 
         if !argument_rest.trim().is_empty() {
             return Err(DiagnosticDto {
@@ -907,10 +1011,56 @@ fn parse_finite_set_primary_expression(
             });
         }
 
-        return Ok((finite_power_set(&set)?, rest));
-    }
+        (finite_power_set(&set)?, rest)
+    } else if source.starts_with("\\left(") || source.starts_with('(') {
+        let (argument, rest) = extract_parenthesized_argument(source)?;
+        let (set, argument_rest) = parse_finite_set_union_expression(argument, context)?;
 
-    parse_finite_set(source)
+        if !argument_rest.trim().is_empty() {
+            return Err(DiagnosticDto {
+                code: "Set.TrailingInput".to_owned(),
+                message: "unexpected input inside grouped set expression".to_owned(),
+            });
+        }
+
+        (set, rest)
+    } else if let Some((symbol, after_symbol)) = parse_set_expression_symbol(source) {
+        let Some(context) = context else {
+            return parse_finite_set(source, context);
+        };
+        let Some(bound_set) = context.bindings.get(symbol) else {
+            return Err(DiagnosticDto {
+                code: "Set.UnknownSymbol".to_owned(),
+                message: format!("unknown finite set symbol '{symbol}'"),
+            });
+        };
+
+        (bound_set.clone(), after_symbol)
+    } else {
+        parse_finite_set(source, context)?
+    };
+
+    loop {
+        let after_space = rest.trim_start();
+        let after_complement = after_space
+            .strip_prefix("^{c}")
+            .or_else(|| after_space.strip_prefix("^c"))
+            .or_else(|| after_space.strip_prefix("'"))
+            .or_else(|| after_space.strip_prefix("^\\complement"))
+            .or_else(|| after_space.strip_prefix("^{\\complement}"));
+        let Some(after_complement) = after_complement else {
+            return Ok((set, rest));
+        };
+        let Some(context) = context else {
+            return Err(DiagnosticDto {
+                code: "Set.ComplementRequiresUniverse".to_owned(),
+                message: "set complements require an explicit finite universe".to_owned(),
+            });
+        };
+
+        set = finite_relative_complement(&context.universe, &set)?;
+        rest = after_complement;
+    }
 }
 
 fn extract_parenthesized_argument(source: &str) -> Result<(&str, &str), DiagnosticDto> {
@@ -992,6 +1142,86 @@ fn finite_power_set(set: &FiniteSetExpression) -> Result<FiniteSetExpression, Di
     }
 
     Ok(FiniteSetExpression { elements: subsets })
+}
+
+fn finite_set_context(
+    universe_source: &str,
+    bindings: &[SetBindingDto],
+    input_format: &str,
+) -> Result<FiniteSetContext, DiagnosticDto> {
+    let universe = normalize_finite_set_expression(universe_source, input_format)?;
+    let mut normalized_bindings = BTreeMap::new();
+    normalized_bindings.insert("U".to_owned(), universe.clone());
+
+    for binding in bindings {
+        validate_set_symbol(&binding.symbol)?;
+        if binding.symbol == "U" {
+            return Err(DiagnosticDto {
+                code: "Set.ReservedUniverseSymbol".to_owned(),
+                message: "the symbol U is reserved for the declared universe".to_owned(),
+            });
+        }
+
+        let set = normalize_finite_set_expression_with_context(
+            &binding.expression,
+            input_format,
+            Some(&FiniteSetContext {
+                universe: universe.clone(),
+                bindings: normalized_bindings.clone(),
+            }),
+        )?;
+
+        if !set.elements.is_subset(&universe.elements) {
+            return Err(DiagnosticDto {
+                code: "Set.BindingOutsideUniverse".to_owned(),
+                message: format!(
+                    "the finite set bound to '{}' contains elements outside the universe",
+                    binding.symbol
+                ),
+            });
+        }
+
+        normalized_bindings.insert(binding.symbol.clone(), set);
+    }
+
+    Ok(FiniteSetContext {
+        universe,
+        bindings: normalized_bindings,
+    })
+}
+
+fn validate_set_symbol(symbol: &str) -> Result<(), DiagnosticDto> {
+    if parse_set_expression_symbol(symbol)
+        .is_some_and(|(parsed, rest)| parsed == symbol && rest.is_empty())
+    {
+        return Ok(());
+    }
+
+    Err(DiagnosticDto {
+        code: "Set.InvalidSymbol".to_owned(),
+        message: "finite set symbols must start with a letter and contain only letters, digits, or underscores".to_owned(),
+    })
+}
+
+fn finite_relative_complement(
+    universe: &FiniteSetExpression,
+    set: &FiniteSetExpression,
+) -> Result<FiniteSetExpression, DiagnosticDto> {
+    if !set.elements.is_subset(&universe.elements) {
+        return Err(DiagnosticDto {
+            code: "Set.ComplementOutsideUniverse".to_owned(),
+            message: "cannot complement a set that is not a subset of the declared universe"
+                .to_owned(),
+        });
+    }
+
+    Ok(FiniteSetExpression {
+        elements: universe
+            .elements
+            .difference(&set.elements)
+            .cloned()
+            .collect(),
+    })
 }
 
 fn apply_finite_set_binary_operator(
@@ -1201,6 +1431,74 @@ fn finite_relation_pairs(
         .collect()
 }
 
+fn evaluate_finite_relation_set_operation(
+    relation_source: &str,
+    input_format: &str,
+    operation: fn(&FiniteSetExpression) -> Result<FiniteSetExpression, DiagnosticDto>,
+) -> NormalizeSetExpressionResponseDto {
+    let relation = match normalize_finite_set_expression(relation_source, input_format) {
+        Ok(value) => value,
+        Err(diagnostic) => {
+            return NormalizeSetExpressionResponseDto {
+                outcome: MathematicalOutcomeKindDto::Unknown,
+                normalized: None,
+                diagnostics: vec![diagnostic],
+            };
+        }
+    };
+    let result = match operation(&relation) {
+        Ok(value) => value,
+        Err(diagnostic) => {
+            return NormalizeSetExpressionResponseDto {
+                outcome: MathematicalOutcomeKindDto::Unknown,
+                normalized: None,
+                diagnostics: vec![diagnostic],
+            };
+        }
+    };
+
+    NormalizeSetExpressionResponseDto {
+        outcome: MathematicalOutcomeKindDto::Proven,
+        normalized: Some(SetExpressionDto {
+            latex: result.to_latex(),
+        }),
+        diagnostics: Vec::new(),
+    }
+}
+
+fn finite_relation_domain(
+    relation: &FiniteSetExpression,
+) -> Result<FiniteSetExpression, DiagnosticDto> {
+    Ok(FiniteSetExpression {
+        elements: finite_relation_pairs(relation)?
+            .into_iter()
+            .map(|(left, _)| left)
+            .collect(),
+    })
+}
+
+fn finite_relation_range(
+    relation: &FiniteSetExpression,
+) -> Result<FiniteSetExpression, DiagnosticDto> {
+    Ok(FiniteSetExpression {
+        elements: finite_relation_pairs(relation)?
+            .into_iter()
+            .map(|(_, right)| right)
+            .collect(),
+    })
+}
+
+fn finite_relation_inverse(
+    relation: &FiniteSetExpression,
+) -> Result<FiniteSetExpression, DiagnosticDto> {
+    Ok(FiniteSetExpression {
+        elements: finite_relation_pairs(relation)?
+            .into_iter()
+            .map(|(left, right)| FiniteSetElement::OrderedPair(Box::new(right), Box::new(left)))
+            .collect(),
+    })
+}
+
 fn unknown_finite_relation_predicate(
     relation_name: &str,
     diagnostic: DiagnosticDto,
@@ -1296,7 +1594,10 @@ fn normalize_finite_set_element_expression(
     Ok(element)
 }
 
-fn parse_finite_set(source: &str) -> Result<(FiniteSetExpression, &str), DiagnosticDto> {
+fn parse_finite_set<'a>(
+    source: &'a str,
+    context: Option<&FiniteSetContext>,
+) -> Result<(FiniteSetExpression, &'a str), DiagnosticDto> {
     let source = source.trim_start();
 
     if let Some(rest) = source.strip_prefix("\\varnothing") {
@@ -1317,7 +1618,7 @@ fn parse_finite_set(source: &str) -> Result<(FiniteSetExpression, &str), Diagnos
         return Ok((FiniteSetExpression { elements }, after_close));
     }
 
-    if let Some(builder_result) = try_parse_bounded_set_builder(after_open)? {
+    if let Some(builder_result) = try_parse_bounded_set_builder(after_open, context)? {
         return Ok(builder_result);
     }
 
@@ -1342,9 +1643,10 @@ fn parse_finite_set(source: &str) -> Result<(FiniteSetExpression, &str), Diagnos
     }
 }
 
-fn try_parse_bounded_set_builder(
-    source: &str,
-) -> Result<Option<(FiniteSetExpression, &str)>, DiagnosticDto> {
+fn try_parse_bounded_set_builder<'a>(
+    source: &'a str,
+    context: Option<&FiniteSetContext>,
+) -> Result<Option<(FiniteSetExpression, &'a str)>, DiagnosticDto> {
     let source = source.trim_start();
     let Some((variable, after_variable)) = parse_set_builder_variable(source) else {
         return Ok(None);
@@ -1353,7 +1655,7 @@ fn try_parse_bounded_set_builder(
         return Ok(None);
     };
 
-    let (domain, after_domain) = parse_finite_set_union_expression(after_membership)?;
+    let (domain, after_domain) = parse_finite_set_union_expression(after_membership, context)?;
     let after_domain = after_domain.trim_start();
     let Some(after_separator) = after_domain
         .strip_prefix("\\mid")
@@ -1388,6 +1690,29 @@ fn parse_set_builder_variable(source: &str) -> Option<(&str, &str)> {
     }
 
     (end > 0).then_some((&source[..end], &source[end..]))
+}
+
+fn parse_set_expression_symbol(source: &str) -> Option<(&str, &str)> {
+    let source = source.trim_start();
+    let mut chars = source.char_indices();
+    let (_, first) = chars.next()?;
+
+    if !first.is_ascii_alphabetic() {
+        return None;
+    }
+
+    let mut end = first.len_utf8();
+
+    for (index, character) in chars {
+        if character.is_ascii_alphanumeric() || character == '_' {
+            end = index + character.len_utf8();
+            continue;
+        }
+
+        break;
+    }
+
+    Some((&source[..end], &source[end..]))
 }
 
 fn extract_until_set_close_at_top_level(source: &str) -> Result<(&str, &str), DiagnosticDto> {
@@ -1620,7 +1945,7 @@ fn evaluate_builder_membership_predicate(
     } else {
         return Ok(None);
     };
-    let (set, rest) = parse_finite_set_union_expression(after_operator)?;
+    let (set, rest) = parse_finite_set_union_expression(after_operator, None)?;
 
     if !rest.trim().is_empty() {
         return Err(DiagnosticDto {
@@ -1668,7 +1993,7 @@ fn parse_finite_set_element(source: &str) -> Result<(FiniteSetElement, &str), Di
     let source = source.trim_start();
 
     if source.starts_with("\\varnothing") || strip_set_open(source).is_some() {
-        let (set, rest) = parse_finite_set(source)?;
+        let (set, rest) = parse_finite_set(source, None)?;
         return Ok((FiniteSetElement::Set(set), rest));
     }
 
@@ -1825,6 +2150,19 @@ fn unknown_set_comparison(diagnostics: Vec<DiagnosticDto>) -> CompareSetExpressi
     CompareSetExpressionsResponseDto {
         outcome: MathematicalOutcomeKindDto::Unknown,
         relation: "set.extensional_equal".to_owned(),
+        equal: None,
+        left_normalized: None,
+        right_normalized: None,
+        diagnostics,
+    }
+}
+
+fn unknown_contextual_set_comparison(
+    diagnostics: Vec<DiagnosticDto>,
+) -> CompareSetExpressionsResponseDto {
+    CompareSetExpressionsResponseDto {
+        outcome: MathematicalOutcomeKindDto::Unknown,
+        relation: "set.extensional_equal.in_context".to_owned(),
         equal: None,
         left_normalized: None,
         right_normalized: None,

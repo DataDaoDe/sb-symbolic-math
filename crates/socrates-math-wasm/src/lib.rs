@@ -1,4 +1,5 @@
 use socrates_math_app::MathEngine;
+use socrates_math_protocol::SetBindingDto;
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -74,6 +75,27 @@ impl WasmMathEngine {
         .map_err(|error| JsValue::from_str(&error.to_string()))
     }
 
+    #[wasm_bindgen(js_name = compareSetExpressionsInContext)]
+    pub fn compare_set_expressions_in_context(
+        &self,
+        left_source: &str,
+        right_source: &str,
+        universe_source: &str,
+        bindings_json: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        let bindings = parse_set_bindings(bindings_json)?;
+
+        serde_json::to_string(&MathEngine::compare_set_expressions_in_context(
+            left_source,
+            right_source,
+            universe_source,
+            &bindings,
+            input_format,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
     #[wasm_bindgen(js_name = evaluateSetStatement)]
     pub fn evaluate_set_statement(
         &self,
@@ -140,6 +162,45 @@ impl WasmMathEngine {
             relation_source,
             set_source,
             property,
+            input_format,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = evaluateRelationDomain)]
+    pub fn evaluate_relation_domain(
+        &self,
+        relation_source: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::evaluate_relation_domain(
+            relation_source,
+            input_format,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = evaluateRelationRange)]
+    pub fn evaluate_relation_range(
+        &self,
+        relation_source: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::evaluate_relation_range(
+            relation_source,
+            input_format,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = evaluateRelationInverse)]
+    pub fn evaluate_relation_inverse(
+        &self,
+        relation_source: &str,
+        input_format: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::evaluate_relation_inverse(
+            relation_source,
             input_format,
         ))
         .map_err(|error| JsValue::from_str(&error.to_string()))
@@ -256,6 +317,11 @@ fn parse_optional_rule_target(
             serde_json::from_str(&json).map_err(|error| JsValue::from_str(&error.to_string()))
         })
         .transpose()
+}
+
+fn parse_set_bindings(bindings_json: &str) -> Result<Vec<SetBindingDto>, JsValue> {
+    serde_json::from_str(bindings_json)
+        .map_err(|error| JsValue::from_str(&format!("invalid set bindings JSON: {error}")))
 }
 
 impl Default for WasmMathEngine {

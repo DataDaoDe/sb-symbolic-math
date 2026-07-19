@@ -159,6 +159,36 @@ export async function createMathEngine(
       return mapCompareSetExpressionsResponse(dto);
     },
 
+    compareSetExpressionsInContext(request) {
+      if (!wasmEngine.compareSetExpressionsInContext) {
+        return {
+          outcome: "unknown",
+          relation: "set.extensional_equal.in_context",
+          equal: null,
+          leftNormalized: null,
+          rightNormalized: null,
+          diagnostics: [
+            {
+              code: "Engine.UnsupportedOperation",
+              message:
+                "The loaded math engine cannot compare contextual set expressions.",
+            },
+          ],
+        };
+      }
+
+      const dto = parseJson<CompareSetExpressionsResponseDto>(
+        wasmEngine.compareSetExpressionsInContext(
+          request.leftExpression,
+          request.rightExpression,
+          request.universeExpression,
+          JSON.stringify(request.bindings),
+          request.inputFormat,
+        ),
+      );
+      return mapCompareSetExpressionsResponse(dto);
+    },
+
     evaluateSetStatement(request) {
       if (!wasmEngine.evaluateSetStatement) {
         return {
@@ -262,6 +292,54 @@ export async function createMathEngine(
         ),
       );
       return mapEvaluateFiniteRelationPredicateResponse(dto);
+    },
+
+    evaluateRelationDomain(request) {
+      if (!wasmEngine.evaluateRelationDomain) {
+        return unsupportedSetNormalization(
+          "The loaded math engine cannot evaluate relation domains.",
+        );
+      }
+
+      const dto = parseJson<NormalizeSetExpressionResponseDto>(
+        wasmEngine.evaluateRelationDomain(
+          request.relationExpression,
+          request.inputFormat,
+        ),
+      );
+      return mapNormalizeSetExpressionResponse(dto);
+    },
+
+    evaluateRelationRange(request) {
+      if (!wasmEngine.evaluateRelationRange) {
+        return unsupportedSetNormalization(
+          "The loaded math engine cannot evaluate relation ranges.",
+        );
+      }
+
+      const dto = parseJson<NormalizeSetExpressionResponseDto>(
+        wasmEngine.evaluateRelationRange(
+          request.relationExpression,
+          request.inputFormat,
+        ),
+      );
+      return mapNormalizeSetExpressionResponse(dto);
+    },
+
+    evaluateRelationInverse(request) {
+      if (!wasmEngine.evaluateRelationInverse) {
+        return unsupportedSetNormalization(
+          "The loaded math engine cannot evaluate relation inverses.",
+        );
+      }
+
+      const dto = parseJson<NormalizeSetExpressionResponseDto>(
+        wasmEngine.evaluateRelationInverse(
+          request.relationExpression,
+          request.inputFormat,
+        ),
+      );
+      return mapNormalizeSetExpressionResponse(dto);
     },
 
     compareNumericAnswer(request) {
@@ -411,6 +489,19 @@ function unsupportedFiniteRelationPredicate(
     normalizedRelation: null,
     normalizedDomain: null,
     normalizedCodomain: null,
+    diagnostics: [
+      {
+        code: "Engine.UnsupportedOperation",
+        message,
+      },
+    ],
+  };
+}
+
+function unsupportedSetNormalization(message: string) {
+  return {
+    outcome: "unknown" as const,
+    normalized: null,
     diagnostics: [
       {
         code: "Engine.UnsupportedOperation",

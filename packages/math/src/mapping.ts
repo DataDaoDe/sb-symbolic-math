@@ -109,7 +109,10 @@ export function mapCompareSetExpressionsResponse(
 ): CompareSetExpressionsResult {
   return {
     outcome: dto.outcome,
-    relation: "set.extensional_equal",
+    relation:
+      dto.relation === "set.extensional_equal.in_context"
+        ? "set.extensional_equal.in_context"
+        : "set.extensional_equal",
     equal: dto.equal,
     leftNormalized: dto.left_normalized,
     rightNormalized: dto.right_normalized,

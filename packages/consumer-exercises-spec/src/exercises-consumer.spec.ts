@@ -14,6 +14,7 @@ import type {
   NormalizeMathExpressionResult,
   NormalizeSetExpressionResult,
   RuleTarget,
+  SetBinding,
   SetExpressionInputFormat,
 } from "@socrates/math";
 
@@ -44,6 +45,15 @@ export interface SetExpressionAnswerKey {
   type: "set_expression";
   prompt: string;
   inputFormat: SetExpressionInputFormat;
+  acceptedExpressions: readonly string[];
+}
+
+export interface ContextualSetExpressionAnswerKey {
+  type: "contextual_set_expression";
+  prompt: string;
+  inputFormat: SetExpressionInputFormat;
+  universeExpression: string;
+  bindings: readonly SetBinding[];
   acceptedExpressions: readonly string[];
 }
 
@@ -79,6 +89,14 @@ export interface FiniteRelationPropertyAnswerKey {
   setExpression: string;
   property: FiniteRelationProperty;
   expectedTruth: boolean;
+}
+
+export interface FiniteRelationSetOperationAnswerKey {
+  type: "relation_domain" | "relation_range" | "relation_inverse";
+  prompt: string;
+  inputFormat: SetExpressionInputFormat;
+  relationExpression: string;
+  acceptedExpressions: readonly string[];
 }
 
 export interface StudentLatexResponse {
@@ -288,6 +306,56 @@ export function gradeSetExpression(
   };
 }
 
+export function gradeContextualSetExpression(
+  engine: MathEngine,
+  answerKey: ContextualSetExpressionAnswerKey,
+  response: StudentLatexResponse,
+): GradeResult<SetExpressionDetail> {
+  let lastComparison: CompareSetExpressionsResult | null = null;
+
+  for (const acceptedExpression of answerKey.acceptedExpressions) {
+    const comparison = engine.compareSetExpressionsInContext({
+      leftExpression: acceptedExpression,
+      rightExpression: response.latex,
+      universeExpression: answerKey.universeExpression,
+      bindings: answerKey.bindings,
+      inputFormat: answerKey.inputFormat,
+    });
+
+    lastComparison = comparison;
+
+    if (comparison.outcome === "proven" && comparison.equal === true) {
+      return {
+        correct: true,
+        latencyMs: response.latencyMs,
+        detail: {
+          normalized: {
+            outcome: comparison.outcome,
+            normalized: comparison.rightNormalized,
+            diagnostics: comparison.diagnostics,
+          },
+          matchedExpression: acceptedExpression,
+          lastComparison,
+        },
+      };
+    }
+  }
+
+  return {
+    correct: false,
+    latencyMs: response.latencyMs,
+    detail: {
+      normalized: {
+        outcome: lastComparison?.outcome ?? "unknown",
+        normalized: lastComparison?.rightNormalized ?? null,
+        diagnostics: lastComparison?.diagnostics ?? [],
+      },
+      matchedExpression: null,
+      lastComparison,
+    },
+  };
+}
+
 export function gradeSetStatement(
   engine: MathEngine,
   answerKey: SetStatementAnswerKey,
@@ -371,6 +439,61 @@ export function gradeFiniteRelationProperty(
       evaluation.truth === answerKey.expectedTruth,
     latencyMs: 0,
     detail: { evaluation },
+  };
+}
+
+export function gradeFiniteRelationSetOperation(
+  engine: MathEngine,
+  answerKey: FiniteRelationSetOperationAnswerKey,
+): GradeResult<SetExpressionDetail> {
+  const normalized =
+    answerKey.type === "relation_domain"
+      ? engine.evaluateRelationDomain({
+          relationExpression: answerKey.relationExpression,
+          inputFormat: answerKey.inputFormat,
+        })
+      : answerKey.type === "relation_range"
+        ? engine.evaluateRelationRange({
+            relationExpression: answerKey.relationExpression,
+            inputFormat: answerKey.inputFormat,
+          })
+        : engine.evaluateRelationInverse({
+            relationExpression: answerKey.relationExpression,
+            inputFormat: answerKey.inputFormat,
+          });
+
+  let lastComparison: CompareSetExpressionsResult | null = null;
+
+  for (const acceptedExpression of answerKey.acceptedExpressions) {
+    const comparison = engine.compareSetExpressions({
+      leftExpression: acceptedExpression,
+      rightExpression: normalized.normalized?.latex ?? "",
+      inputFormat: answerKey.inputFormat,
+    });
+
+    lastComparison = comparison;
+
+    if (comparison.outcome === "proven" && comparison.equal === true) {
+      return {
+        correct: true,
+        latencyMs: 0,
+        detail: {
+          normalized,
+          matchedExpression: acceptedExpression,
+          lastComparison,
+        },
+      };
+    }
+  }
+
+  return {
+    correct: false,
+    latencyMs: 0,
+    detail: {
+      normalized,
+      matchedExpression: null,
+      lastComparison,
+    },
   };
 }
 

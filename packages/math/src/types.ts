@@ -111,9 +111,22 @@ export interface CompareSetExpressionsRequest {
   inputFormat: SetExpressionInputFormat;
 }
 
+export interface SetBinding {
+  symbol: string;
+  expression: string;
+}
+
+export interface CompareSetExpressionsInContextRequest {
+  leftExpression: string;
+  rightExpression: string;
+  universeExpression: string;
+  bindings: readonly SetBinding[];
+  inputFormat: SetExpressionInputFormat;
+}
+
 export interface CompareSetExpressionsResult {
   outcome: MathematicalOutcome;
-  relation: "set.extensional_equal";
+  relation: "set.extensional_equal" | "set.extensional_equal.in_context";
   equal: boolean | null;
   leftNormalized: SetExpression | null;
   rightNormalized: SetExpression | null;
@@ -180,6 +193,11 @@ export interface EvaluateFiniteRelationPropertyRequest {
   relationExpression: string;
   setExpression: string;
   property: FiniteRelationProperty;
+  inputFormat: SetExpressionInputFormat;
+}
+
+export interface EvaluateFiniteRelationSetOperationRequest {
+  relationExpression: string;
   inputFormat: SetExpressionInputFormat;
 }
 
@@ -299,6 +317,10 @@ export interface MathEngine {
     request: CompareSetExpressionsRequest,
   ): CompareSetExpressionsResult;
 
+  compareSetExpressionsInContext(
+    request: CompareSetExpressionsInContextRequest,
+  ): CompareSetExpressionsResult;
+
   evaluateSetStatement(
     request: EvaluateSetStatementRequest,
   ): EvaluateSetStatementResult;
@@ -318,6 +340,18 @@ export interface MathEngine {
   evaluateRelationProperty(
     request: EvaluateFiniteRelationPropertyRequest,
   ): EvaluateFiniteRelationPredicateResult;
+
+  evaluateRelationDomain(
+    request: EvaluateFiniteRelationSetOperationRequest,
+  ): NormalizeSetExpressionResult;
+
+  evaluateRelationRange(
+    request: EvaluateFiniteRelationSetOperationRequest,
+  ): NormalizeSetExpressionResult;
+
+  evaluateRelationInverse(
+    request: EvaluateFiniteRelationSetOperationRequest,
+  ): NormalizeSetExpressionResult;
 
   compareNumericAnswer(
     request: CompareNumericAnswerRequest,

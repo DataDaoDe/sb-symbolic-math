@@ -81,6 +81,11 @@ export interface CompareSetExpressionsResponseDto {
   diagnostics: DiagnosticDto[];
 }
 
+export interface SetBindingDto {
+  symbol: string;
+  expression: string;
+}
+
 export interface EvaluateSetStatementResponseDto {
   outcome: MathematicalOutcomeDto;
   relation: string;
@@ -195,6 +200,13 @@ export interface WasmMathEngineBinding {
     rightSource: string,
     inputFormat: string,
   ): string;
+  compareSetExpressionsInContext?(
+    leftSource: string,
+    rightSource: string,
+    universeSource: string,
+    bindingsJson: string,
+    inputFormat: string,
+  ): string;
   evaluateSetStatement?(source: string, inputFormat: string): string;
   evaluateSetCardinality?(source: string, inputFormat: string): string;
   evaluateRelationFrom?(
@@ -215,6 +227,9 @@ export interface WasmMathEngineBinding {
     property: string,
     inputFormat: string,
   ): string;
+  evaluateRelationDomain?(relationSource: string, inputFormat: string): string;
+  evaluateRelationRange?(relationSource: string, inputFormat: string): string;
+  evaluateRelationInverse?(relationSource: string, inputFormat: string): string;
   compareNumericAnswer?(
     submittedSource: string,
     expectedSource: string,

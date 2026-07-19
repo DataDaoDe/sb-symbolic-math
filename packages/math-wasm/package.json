@@ -10,7 +10,7 @@
     "pkg"
   ],
   "scripts": {
-    "build": "wasm-pack build ../../crates/socrates-math-wasm --target bundler --out-dir ../../packages/math-wasm/pkg --out-name index",
+    "build": "wasm-pack build ../../crates/socrates-math-wasm --target web --out-dir ../../packages/math-wasm/pkg --out-name index",
     "clean": "rm -rf pkg",
     "typecheck": "test -f pkg/index.d.ts || echo 'Skipping @socrates/math-wasm typecheck: run pnpm --filter @socrates/math-wasm build after installing wasm-pack.'"
   }

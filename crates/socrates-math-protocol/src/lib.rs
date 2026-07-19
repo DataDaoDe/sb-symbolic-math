@@ -129,6 +129,12 @@ pub struct CompareSetExpressionsResponseDto {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct SetBindingDto {
+    pub symbol: String,
+    pub expression: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct EvaluateSetStatementResponseDto {
     pub outcome: MathematicalOutcomeKindDto,
     pub relation: String,

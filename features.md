@@ -929,6 +929,12 @@ Feature: Grade naive set theory exercises
     Then the answer is accepted
     And the equivalent answer "A \cap B^c" is also accepted when a universe is declared
 
+  Scenario: Compute relation domain, range, and inverse
+    Given the finite relation "{(1,a),(2,b)}"
+    When I ask for its domain, range, or inverse
+    Then the result is a normalized finite set
+    And malformed relation inputs are reported as Unknown with a structured diagnostic
+
   Scenario: Classify relation properties
     Given a finite relation on a finite set
     When I ask whether it is reflexive, symmetric, antisymmetric, or transitive

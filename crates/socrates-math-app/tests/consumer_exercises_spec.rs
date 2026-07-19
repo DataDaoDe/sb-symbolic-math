@@ -3,7 +3,7 @@ use socrates_math_protocol::{
     CompareMathExpressionsResponseDto, CompareNumericAnswerResponseDto,
     CompareSetExpressionsResponseDto, EvaluateFiniteRelationPredicateResponseDto,
     EvaluateSetCardinalityResponseDto, EvaluateSetStatementResponseDto, MathematicalOutcomeKindDto,
-    RuleApplicabilityStatusDto, RuleTargetDto,
+    RuleApplicabilityStatusDto, RuleTargetDto, SetBindingDto,
 };
 
 struct MathExpressionAnswerKey<'a> {
@@ -929,6 +929,102 @@ fn set_statement_evaluates_ordered_pair_membership() {
 }
 
 #[test]
+fn set_expression_computes_complement_relative_to_a_declared_universe() {
+    let result = MathEngine::compare_set_expressions_in_context(
+        "A^c",
+        "\\{3,4\\}",
+        "\\{1,2,3,4\\}",
+        &[SetBindingDto {
+            symbol: "A".to_owned(),
+            expression: "\\{1,2\\}".to_owned(),
+        }],
+        "latex",
+    );
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Proven);
+    assert_eq!(result.relation, "set.extensional_equal.in_context");
+    assert_eq!(result.equal, Some(true));
+    assert_eq!(result.left_normalized.unwrap().latex, "\\{3,4\\}");
+    assert_eq!(result.right_normalized.unwrap().latex, "\\{3,4\\}");
+}
+
+#[test]
+fn set_identity_verifies_de_morgans_law_on_a_finite_universe() {
+    let bindings = [
+        SetBindingDto {
+            symbol: "A".to_owned(),
+            expression: "\\{1,2\\}".to_owned(),
+        },
+        SetBindingDto {
+            symbol: "B".to_owned(),
+            expression: "\\{2,3\\}".to_owned(),
+        },
+    ];
+    let result = MathEngine::compare_set_expressions_in_context(
+        "(A \\cup B)^c",
+        "A^c \\cap B^c",
+        "\\{1,2,3,4\\}",
+        &bindings,
+        "latex",
+    );
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Proven);
+    assert_eq!(result.equal, Some(true));
+    assert_eq!(result.left_normalized.unwrap().latex, "\\{4\\}");
+    assert_eq!(result.right_normalized.unwrap().latex, "\\{4\\}");
+}
+
+#[test]
+fn venn_region_accepts_difference_or_intersection_with_complement() {
+    let bindings = [
+        SetBindingDto {
+            symbol: "A".to_owned(),
+            expression: "\\{1,2,3\\}".to_owned(),
+        },
+        SetBindingDto {
+            symbol: "B".to_owned(),
+            expression: "\\{3,4\\}".to_owned(),
+        },
+    ];
+    let result = MathEngine::compare_set_expressions_in_context(
+        "A \\setminus B",
+        "A \\cap B^c",
+        "\\{1,2,3,4,5\\}",
+        &bindings,
+        "latex",
+    );
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Proven);
+    assert_eq!(result.equal, Some(true));
+    assert_eq!(result.left_normalized.unwrap().latex, "\\{1,2\\}");
+    assert_eq!(result.right_normalized.unwrap().latex, "\\{1,2\\}");
+}
+
+#[test]
+fn contextual_set_comparison_rejects_bindings_outside_the_universe() {
+    let result = MathEngine::compare_set_expressions_in_context(
+        "A^c",
+        "\\varnothing",
+        "\\{1,2\\}",
+        &[SetBindingDto {
+            symbol: "A".to_owned(),
+            expression: "\\{1,3\\}".to_owned(),
+        }],
+        "latex",
+    );
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Unknown);
+    assert_eq!(result.equal, None);
+    assert_eq!(
+        result
+            .diagnostics
+            .first()
+            .map(|diagnostic| diagnostic.code.as_str()),
+        Some("Set.BindingOutsideUniverse")
+    );
+}
+
+#[test]
 fn finite_relation_predicate_accepts_a_relation_from_domain_to_codomain() {
     let result: EvaluateFiniteRelationPredicateResponseDto =
         MathEngine::evaluate_relation_from("\\{(1,a),(2,b)\\}", "\\{1,2\\}", "\\{a,b\\}", "latex");
@@ -1139,6 +1235,45 @@ fn finite_relation_property_reports_unsupported_property() {
             .first()
             .map(|diagnostic| diagnostic.code.as_str()),
         Some("Relation.UnsupportedProperty")
+    );
+}
+
+#[test]
+fn finite_relation_domain_lists_first_coordinates() {
+    let result = MathEngine::evaluate_relation_domain("\\{(1,a),(2,a),(2,b)\\}", "latex");
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Proven);
+    assert_eq!(result.normalized.unwrap().latex, "\\{1,2\\}");
+}
+
+#[test]
+fn finite_relation_range_lists_second_coordinates() {
+    let result = MathEngine::evaluate_relation_range("\\{(1,a),(2,a),(2,b)\\}", "latex");
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Proven);
+    assert_eq!(result.normalized.unwrap().latex, "\\{a,b\\}");
+}
+
+#[test]
+fn finite_relation_inverse_swaps_ordered_pair_coordinates() {
+    let result = MathEngine::evaluate_relation_inverse("\\{(1,a),(2,b)\\}", "latex");
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Proven);
+    assert_eq!(result.normalized.unwrap().latex, "\\{(a,1),(b,2)\\}");
+}
+
+#[test]
+fn finite_relation_operations_require_ordered_pairs() {
+    let result = MathEngine::evaluate_relation_domain("\\{1,2\\}", "latex");
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Unknown);
+    assert_eq!(result.normalized, None);
+    assert_eq!(
+        result
+            .diagnostics
+            .first()
+            .map(|diagnostic| diagnostic.code.as_str()),
+        Some("Relation.ExpectedOrderedPairs")
     );
 }
 
