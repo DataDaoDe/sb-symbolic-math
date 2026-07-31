@@ -1,0 +1,21 @@
+{
+  "name": "@socrates/math-laboratory",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@socrates/math": "workspace:*",
+    "@socrates/math-wasm": "workspace:*",
+    "katex": "^0.16.22"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "vite": "^7.1.7"
+  }
+}

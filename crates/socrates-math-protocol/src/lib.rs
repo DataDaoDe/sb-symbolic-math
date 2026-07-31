@@ -164,15 +164,15 @@ pub struct EvaluateFiniteRelationPredicateResponseDto {
     pub diagnostics: Vec<DiagnosticDto>,
 }
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct CompareNumericAnswerResponseDto {
     pub outcome: MathematicalOutcomeKindDto,
     pub relation: String,
     pub equal: Option<bool>,
-    pub submitted_value: Option<f64>,
-    pub expected_value: Option<f64>,
-    pub absolute_error: Option<f64>,
-    pub tolerance: f64,
+    pub submitted_normalized: Option<ExactValueDto>,
+    pub expected_normalized: Option<ExactValueDto>,
+    pub absolute_error: Option<ExactValueDto>,
+    pub accepted_tolerance: Option<ExactValueDto>,
     pub diagnostics: Vec<DiagnosticDto>,
 }
 
@@ -237,6 +237,16 @@ pub struct ApplyRuleResponseDto {
     pub relation: String,
     pub previous: Option<MathExpressionDto>,
     pub result: Option<MathExpressionDto>,
+    pub step: Option<MathDerivationStepDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApplyLinearEquationRuleResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub previous_latex: Option<String>,
+    pub result_latex: Option<String>,
     pub step: Option<MathDerivationStepDto>,
     pub diagnostics: Vec<DiagnosticDto>,
 }

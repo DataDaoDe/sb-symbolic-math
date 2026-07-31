@@ -20,6 +20,15 @@ function runCommand(args: string[]): void {
   const [command, ...values] = args;
 
   switch (command) {
+    case "apply-equation-rule": {
+      const [equation, rule = "algebra.linear-equation.simplify-both-sides", variable = "x"] = values;
+      requireArgs(command, values, 1);
+      print(
+        `apply ${rule}: ${equation}`,
+        engine.applyLinearEquationRule({ equation, variable, rule: rule as "algebra.linear-equation.simplify-both-sides" | "algebra.linear-equation.solve" }),
+      );
+      return;
+    }
     case "normalize": {
       const [expression, variable = "x"] = values;
       requireArgs(command, values, 1);
@@ -79,19 +88,17 @@ function runCommand(args: string[]): void {
     case "compare-numeric": {
       const [submitted, expected, toleranceText = "0"] = values;
       requireArgs(command, values, 2);
-      const tolerance = Number(toleranceText);
-
-      if (!Number.isFinite(tolerance)) {
-        throw new Error(`compare-numeric tolerance must be a number, got '${toleranceText}'`);
-      }
-
       print(
-        `compare numeric_answer: ${submitted} vs ${expected}, tolerance ${tolerance}`,
+        `compare numeric_answer: ${submitted} vs ${expected}, tolerance ${toleranceText}`,
         engine.compareNumericAnswer({
           submitted,
           expected,
           inputFormat: "latex",
-          tolerance,
+          grading: {
+            mode: "approximate",
+            absoluteTolerance: toleranceText,
+            relativeTolerance: null,
+          },
         }),
       );
       return;
@@ -228,7 +235,11 @@ function runDemo(): void {
     submitted: "\\frac{333}{1000}",
     expected: "\\frac{1}{3}",
     inputFormat: "latex",
-    tolerance: 0.001,
+    grading: {
+      mode: "approximate",
+      absoluteTolerance: "0.001",
+      relativeTolerance: null,
+    },
   });
   console.log("compare numeric_answer: \\frac{333}{1000} vs \\frac{1}{3}, tolerance 0.001");
   console.dir(numeric, { depth: null });
@@ -247,6 +258,7 @@ Usage:
   pnpm --filter @socrates/playground run try -- normalize <expression> [variable]
   pnpm --filter @socrates/playground run try -- compare-expressions <left> <right> [variable]
   pnpm --filter @socrates/playground run try -- compare-equations <left> <right> [variable]
+  pnpm --filter @socrates/playground run try -- apply-equation-rule <equation> [rule-id] [variable]
   pnpm --filter @socrates/playground run try -- solve-linear <equation> [variable]
   pnpm --filter @socrates/playground run try -- compare-numeric <submitted> <expected> [tolerance]
   pnpm --filter @socrates/playground run try -- differentiate <expression> [variable]
@@ -256,6 +268,7 @@ Examples:
   pnpm --filter @socrates/playground run try -- normalize "3(x - 2) + 4"
   pnpm --filter @socrates/playground run try -- compare-expressions "2(x + 1)" "2x + 2"
   pnpm --filter @socrates/playground run try -- compare-equations "x + 1 = 3" "2x = 4"
+  pnpm --filter @socrates/playground run try -- apply-equation-rule "3(x - 2) + 4 = 2x + 9" algebra.linear-equation.simplify-both-sides
   pnpm --filter @socrates/playground run try -- compare-numeric "\\frac{333}{1000}" "\\frac{1}{3}" 0.001
   pnpm --filter @socrates/playground run try -- differentiate "x^3 + 2x"
   pnpm --filter @socrates/playground run try -- integrate "x^3"`);

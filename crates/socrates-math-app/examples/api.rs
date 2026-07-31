@@ -22,6 +22,12 @@ fn main() {
                 &args[1], &args[2], &args[3],
             ))
         }
+        "apply-equation-rule" => {
+            expect_len(&args, 4);
+            serde_json::to_string(&MathEngine::apply_linear_equation_rule(
+                &args[1], &args[2], &args[3],
+            ))
+        }
         "normalize-expression" => {
             expect_len(&args, 4);
             serde_json::to_string(&MathEngine::normalize_math_expression(
@@ -35,13 +41,14 @@ fn main() {
             ))
         }
         "compare-numeric" => {
-            expect_len(&args, 5);
-            let tolerance = args[4].parse::<f64>().unwrap_or_else(|error| {
-                eprintln!("invalid tolerance '{}': {error}", args[4]);
-                process::exit(2);
-            });
+            expect_len(&args, 7);
             serde_json::to_string(&MathEngine::compare_numeric_answer(
-                &args[1], &args[2], &args[3], tolerance,
+                &args[1],
+                &args[2],
+                &args[3],
+                &args[4],
+                &args[5],
+                (!args[6].is_empty()).then_some(args[6].as_str()),
             ))
         }
         "differentiate" => {
@@ -79,9 +86,10 @@ fn usage() -> ! {
         "usage:
   api solve-linear <equation> <variable>
   api compare-equations <left-equation> <right-equation> <variable>
+  api apply-equation-rule <equation> <variable> <rule-id>
   api normalize-expression <expression> <input-format> <variable>
   api compare-expressions <left-expression> <right-expression> <input-format> <variable>
-  api compare-numeric <submitted> <expected> <input-format> <tolerance>
+  api compare-numeric <submitted> <expected> <input-format> <grading-mode> <absolute-tolerance> <relative-tolerance-or-empty>
   api differentiate <expression> <input-format> <variable>
   api integrate <expression> <input-format> <variable>"
     );

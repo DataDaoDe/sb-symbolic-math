@@ -18,6 +18,19 @@ impl WasmMathEngine {
             .map_err(|error| JsValue::from_str(&error.to_string()))
     }
 
+    #[wasm_bindgen(js_name = applyLinearEquationRule)]
+    pub fn apply_linear_equation_rule(
+        &self,
+        source: &str,
+        variable: &str,
+        rule: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::apply_linear_equation_rule(
+            source, variable, rule,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
     #[wasm_bindgen(js_name = normalizeMathExpression)]
     pub fn normalize_math_expression(
         &self,
@@ -212,13 +225,17 @@ impl WasmMathEngine {
         submitted_source: &str,
         expected_source: &str,
         input_format: &str,
-        tolerance: f64,
+        grading_mode: &str,
+        absolute_tolerance_source: &str,
+        relative_tolerance_source: Option<String>,
     ) -> Result<String, JsValue> {
         serde_json::to_string(&MathEngine::compare_numeric_answer(
             submitted_source,
             expected_source,
             input_format,
-            tolerance,
+            grading_mode,
+            absolute_tolerance_source,
+            relative_tolerance_source.as_deref(),
         ))
         .map_err(|error| JsValue::from_str(&error.to_string()))
     }

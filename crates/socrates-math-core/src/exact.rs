@@ -2,6 +2,7 @@ use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Signed, Zero};
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering;
 use std::fmt;
 use std::str::FromStr;
 
@@ -81,6 +82,62 @@ impl ExactRational {
         )
     }
 
+    /// Parses a plain exact numeric response: an integer, `a/b`, a decimal, or
+    /// scientific notation. No floating-point conversion occurs.
+    pub fn parse_number(source: &str) -> Result<Self, ExactValueError> {
+        let source = source.trim();
+        if let Some((numerator, denominator)) = source.split_once('/') {
+            if denominator.contains('/') {
+                return Err(ExactValueError::InvalidNumericLiteral(source.to_owned()));
+            }
+            return Self::parse_fraction(numerator.trim(), denominator.trim());
+        }
+
+        let (mantissa, exponent) = match source.find(['e', 'E']) {
+            Some(index) => {
+                let exponent = source[index + 1..]
+                    .parse::<i32>()
+                    .map_err(|_| ExactValueError::InvalidNumericLiteral(source.to_owned()))?;
+                (&source[..index], exponent)
+            }
+            None => (source, 0),
+        };
+        if exponent.unsigned_abs() > 10_000 {
+            return Err(ExactValueError::InvalidNumericLiteral(source.to_owned()));
+        }
+
+        let (negative, unsigned) = match mantissa.as_bytes().first() {
+            Some(b'-') => (true, &mantissa[1..]),
+            Some(b'+') => (false, &mantissa[1..]),
+            _ => (false, mantissa),
+        };
+        let (whole, fractional) = match unsigned.split_once('.') {
+            Some(parts) => parts,
+            None => (unsigned, ""),
+        };
+        if whole.is_empty()
+            || !whole.bytes().all(|byte| byte.is_ascii_digit())
+            || !fractional.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return Err(ExactValueError::InvalidNumericLiteral(source.to_owned()));
+        }
+
+        let digits = BigInt::from_str(&format!("{whole}{fractional}"))
+            .map_err(|_| ExactValueError::InvalidNumericLiteral(source.to_owned()))?;
+        let numerator = if negative { -digits } else { digits };
+        let scale = i32::try_from(fractional.len())
+            .map_err(|_| ExactValueError::InvalidNumericLiteral(source.to_owned()))?
+            - exponent;
+        if scale >= 0 {
+            Self::new(numerator, BigInt::from(10u8).pow(scale as u32))
+        } else {
+            Self::new(
+                numerator * BigInt::from(10u8).pow(scale.unsigned_abs()),
+                BigInt::one(),
+            )
+        }
+    }
+
     pub fn numerator(&self) -> &BigInt {
         &self.numerator
     }
@@ -91,6 +148,17 @@ impl ExactRational {
 
     pub fn is_zero(&self) -> bool {
         self.numerator.is_zero()
+    }
+
+    pub fn abs(&self) -> Self {
+        Self {
+            numerator: self.numerator.abs(),
+            denominator: self.denominator.clone(),
+        }
+    }
+
+    pub fn cmp_exact(&self, rhs: &Self) -> Ordering {
+        (&self.numerator * &rhs.denominator).cmp(&(&rhs.numerator * &self.denominator))
     }
 
     pub fn add(&self, rhs: &Self) -> Self {
@@ -159,6 +227,7 @@ impl fmt::Display for ExactRational {
 pub enum ExactValueError {
     DivisionByZero,
     InvalidIntegerLiteral(String),
+    InvalidNumericLiteral(String),
     ZeroDenominator,
 }
 
@@ -191,6 +260,22 @@ mod tests {
         let half = ExactRational::parse_fraction("1", "2").unwrap();
         let third = ExactRational::parse_fraction("1", "3").unwrap();
         assert_eq!(half.add(&third).to_string(), "5/6");
+    }
+
+    #[test]
+    fn parses_plain_decimal_and_scientific_notation_exactly() {
+        assert_eq!(
+            ExactRational::parse_number("0.75").unwrap().to_string(),
+            "3/4"
+        );
+        assert_eq!(
+            ExactRational::parse_number("-1.25e2").unwrap().to_string(),
+            "-125"
+        );
+        assert_eq!(
+            ExactRational::parse_number("6/8").unwrap().to_string(),
+            "3/4"
+        );
     }
 
     #[test]

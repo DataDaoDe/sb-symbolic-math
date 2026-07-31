@@ -37,8 +37,14 @@ fn main() {
     println!("{equation_comparison:#?}");
     println!();
 
-    let numeric =
-        MathEngine::compare_numeric_answer("\\frac{333}{1000}", "\\frac{1}{3}", "latex", 0.001);
+    let numeric = MathEngine::compare_numeric_answer(
+        "\\frac{333}{1000}",
+        "\\frac{1}{3}",
+        "latex",
+        "approximate",
+        "0.001",
+        None,
+    );
     println!("compare numeric_answer: \\frac{{333}}{{1000}} vs \\frac{{1}}{{3}}, tolerance 0.001");
     println!("{numeric:#?}");
 }

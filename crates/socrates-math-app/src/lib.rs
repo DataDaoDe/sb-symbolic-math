@@ -6,15 +6,15 @@ use socrates_math_core::{
 };
 use socrates_math_elab::{ElaborationDiagnosticCode, ElaborationOutcome, Elaborator};
 use socrates_math_protocol::{
-    ApplicableRuleDto, ApplyRuleResponseDto, CompareEquationsResponseDto,
-    CompareMathExpressionsResponseDto, CompareNumericAnswerResponseDto,
-    CompareSetExpressionsResponseDto, DiagnosticDto, EvaluateFiniteRelationPredicateResponseDto,
-    EvaluateSetCardinalityResponseDto, EvaluateSetStatementResponseDto,
-    ListApplicableRulesResponseDto, MathDerivationStepDto, MathExpressionDto,
-    MathematicalOutcomeKindDto, NormalizeMathExpressionResponseDto,
-    NormalizeSetExpressionResponseDto, RuleApplicabilityStatusDto, RuleTargetDto, SetBindingDto,
-    SetExpressionDto, SetStatementDto, SolutionSetDto, SolveLinearEquationResponseDto,
-    TransformMathExpressionResponseDto,
+    ApplicableRuleDto, ApplyLinearEquationRuleResponseDto, ApplyRuleResponseDto,
+    CompareEquationsResponseDto, CompareMathExpressionsResponseDto,
+    CompareNumericAnswerResponseDto, CompareSetExpressionsResponseDto, DiagnosticDto,
+    EvaluateFiniteRelationPredicateResponseDto, EvaluateSetCardinalityResponseDto,
+    EvaluateSetStatementResponseDto, ExactValueDto, ListApplicableRulesResponseDto,
+    MathDerivationStepDto, MathExpressionDto, MathematicalOutcomeKindDto,
+    NormalizeMathExpressionResponseDto, NormalizeSetExpressionResponseDto,
+    RuleApplicabilityStatusDto, RuleTargetDto, SetBindingDto, SetExpressionDto, SetStatementDto,
+    SolutionSetDto, SolveLinearEquationResponseDto, TransformMathExpressionResponseDto,
 };
 use socrates_math_render::LatexRenderer;
 use socrates_math_solve::LinearEquationSolver;
@@ -24,6 +24,90 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct MathEngine;
 
 impl MathEngine {
+    pub fn apply_linear_equation_rule(
+        source: &str,
+        variable: &str,
+        rule: &str,
+    ) -> ApplyLinearEquationRuleResponseDto {
+        let unknown = |message: String| ApplyLinearEquationRuleResponseDto {
+            outcome: MathematicalOutcomeKindDto::Unknown,
+            relation: "rule.application".to_owned(),
+            previous_latex: Some(source.to_owned()),
+            result_latex: None,
+            step: None,
+            diagnostics: vec![DiagnosticDto {
+                code: "EquationRule.Unsupported".to_owned(),
+                message,
+            }],
+        };
+        let judgment = match parse_and_elaborate_statement(source, variable) {
+            Ok(value) => value,
+            Err(diagnostic) => {
+                return ApplyLinearEquationRuleResponseDto {
+                    outcome: MathematicalOutcomeKindDto::Unknown,
+                    relation: "rule.application".to_owned(),
+                    previous_latex: Some(source.to_owned()),
+                    result_latex: None,
+                    step: None,
+                    diagnostics: vec![diagnostic],
+                };
+            }
+        };
+        let result_latex = match rule {
+            "algebra.linear-equation.simplify-both-sides" => {
+                let left = match LinearNormalizer::normalize(&judgment.left, variable) {
+                    MathematicalOutcome::Proven(value) => value.value.normal_form,
+                    _ => {
+                        return unknown(
+                            "left side is outside the linear rational domain".to_owned(),
+                        );
+                    }
+                };
+                let right = match LinearNormalizer::normalize(&judgment.right, variable) {
+                    MathematicalOutcome::Proven(value) => value.value.normal_form,
+                    _ => {
+                        return unknown(
+                            "right side is outside the linear rational domain".to_owned(),
+                        );
+                    }
+                };
+                format!(
+                    "{} = {}",
+                    LatexRenderer::linear_expression(&left),
+                    LatexRenderer::linear_expression(&right)
+                )
+            }
+            "algebra.linear-equation.solve" => {
+                match LinearEquationSolver::solve(&judgment, variable) {
+                    MathematicalOutcome::Proven(value) => {
+                        LatexRenderer::solution_set(variable, &value.value.solution_set)
+                    }
+                    _ => {
+                        return unknown(
+                            "equation is outside the complete linear rational solver domain"
+                                .to_owned(),
+                        );
+                    }
+                }
+            }
+            _ => return unknown(format!("unknown linear equation rule: {rule}")),
+        };
+        ApplyLinearEquationRuleResponseDto {
+            outcome: MathematicalOutcomeKindDto::Proven,
+            relation: "rule.application".to_owned(),
+            previous_latex: Some(source.to_owned()),
+            result_latex: Some(result_latex.clone()),
+            step: Some(MathDerivationStepDto {
+                rule: rule.to_owned(),
+                reason: "verified linear-equation transformation".to_owned(),
+                target: Some(RuleTargetDto::Whole),
+                input_latex: Some(source.to_owned()),
+                output_latex: Some(result_latex),
+            }),
+            diagnostics: Vec::new(),
+        }
+    }
+
     pub fn normalize_math_expression(
         source: &str,
         _input_format: &str,
@@ -401,34 +485,74 @@ impl MathEngine {
         submitted_source: &str,
         expected_source: &str,
         input_format: &str,
-        tolerance: f64,
+        grading_mode: &str,
+        absolute_tolerance_source: &str,
+        relative_tolerance_source: Option<&str>,
     ) -> CompareNumericAnswerResponseDto {
-        if tolerance < 0.0 {
-            return CompareNumericAnswerResponseDto {
-                outcome: MathematicalOutcomeKindDto::Undefined,
-                relation: "number.within_tolerance".to_owned(),
-                equal: None,
-                submitted_value: None,
-                expected_value: None,
-                absolute_error: None,
-                tolerance,
-                diagnostics: vec![DiagnosticDto {
-                    code: "Tolerance.Negative".to_owned(),
-                    message: "numeric answer tolerance must be non-negative".to_owned(),
-                }],
-            };
-        }
-
         let submitted = match normalize_numeric_value(submitted_source, input_format) {
             Ok(value) => value,
-            Err(diagnostic) => return numeric_error(tolerance, diagnostic),
+            Err(diagnostic) => return numeric_error(grading_mode, diagnostic),
         };
         let expected = match normalize_numeric_value(expected_source, input_format) {
             Ok(value) => value,
-            Err(diagnostic) => return numeric_error(tolerance, diagnostic),
+            Err(diagnostic) => return numeric_error(grading_mode, diagnostic),
         };
-        let absolute_error = (submitted - expected).abs();
-        let equal = absolute_error <= tolerance;
+        let absolute_error = submitted.sub(&expected).abs();
+
+        let (relation, accepted_tolerance, equal) = match grading_mode {
+            "exact" => ("number.exact_equal", None, submitted == expected),
+            "approximate" => {
+                let absolute_tolerance =
+                    match ExactRational::parse_number(absolute_tolerance_source) {
+                        Ok(value) if value.cmp_exact(&ExactRational::integer(0)).is_ge() => value,
+                        _ => {
+                            return numeric_error(
+                                grading_mode,
+                                DiagnosticDto {
+                                    code: "Tolerance.InvalidAbsolute".to_owned(),
+                                    message:
+                                        "absolute tolerance must be a non-negative exact number"
+                                            .to_owned(),
+                                },
+                            );
+                        }
+                    };
+                let relative_tolerance = match relative_tolerance_source {
+                    Some(source) => match ExactRational::parse_number(source) {
+                        Ok(value) if value.cmp_exact(&ExactRational::integer(0)).is_ge() => value,
+                        _ => {
+                            return numeric_error(
+                                grading_mode,
+                                DiagnosticDto {
+                                    code: "Tolerance.InvalidRelative".to_owned(),
+                                    message:
+                                        "relative tolerance must be a non-negative exact number"
+                                            .to_owned(),
+                                },
+                            );
+                        }
+                    },
+                    None => ExactRational::integer(0),
+                };
+                let relative_bound = relative_tolerance.mul(&expected.abs());
+                let accepted = if absolute_tolerance.cmp_exact(&relative_bound).is_ge() {
+                    absolute_tolerance
+                } else {
+                    relative_bound
+                };
+                let equal = absolute_error.cmp_exact(&accepted).is_le();
+                ("number.within_tolerance", Some(accepted), equal)
+            }
+            _ => {
+                return numeric_error(
+                    grading_mode,
+                    DiagnosticDto {
+                        code: "Grading.UnsupportedMode".to_owned(),
+                        message: "numeric grading mode must be exact or approximate".to_owned(),
+                    },
+                );
+            }
+        };
 
         CompareNumericAnswerResponseDto {
             outcome: if equal {
@@ -436,12 +560,12 @@ impl MathEngine {
             } else {
                 MathematicalOutcomeKindDto::Disproven
             },
-            relation: "number.within_tolerance".to_owned(),
+            relation: relation.to_owned(),
             equal: Some(equal),
-            submitted_value: Some(submitted),
-            expected_value: Some(expected),
-            absolute_error: Some(absolute_error),
-            tolerance,
+            submitted_normalized: Some(ExactValueDto::from(&submitted)),
+            expected_normalized: Some(ExactValueDto::from(&expected)),
+            absolute_error: Some(ExactValueDto::from(&absolute_error)),
+            accepted_tolerance: accepted_tolerance.as_ref().map(ExactValueDto::from),
             diagnostics: if equal {
                 Vec::new()
             } else {
@@ -3164,7 +3288,24 @@ fn monomial(
     }
 }
 
-fn normalize_numeric_value(source: &str, input_format: &str) -> Result<f64, DiagnosticDto> {
+fn normalize_numeric_value(
+    source: &str,
+    input_format: &str,
+) -> Result<ExactRational, DiagnosticDto> {
+    if input_format.eq_ignore_ascii_case("plain") {
+        return ExactRational::parse_number(source).map_err(|_| DiagnosticDto {
+            code: "Number.InvalidLiteral".to_owned(),
+            message: "numeric answer is not a supported exact number".to_owned(),
+        });
+    }
+
+    if !input_format.eq_ignore_ascii_case("latex") {
+        return Err(DiagnosticDto {
+            code: "Input.UnsupportedFormat".to_owned(),
+            message: "numeric input format must be plain or latex".to_owned(),
+        });
+    }
+
     let variable = "x";
     let term = parse_and_elaborate_expression(source, variable)?;
 
@@ -3184,13 +3325,6 @@ fn normalize_numeric_value(source: &str, input_format: &str) -> Result<f64, Diag
         }
     };
 
-    if !input_format.eq_ignore_ascii_case("latex") {
-        return Err(DiagnosticDto {
-            code: "Input.UnsupportedFormat".to_owned(),
-            message: "only latex input is currently supported".to_owned(),
-        });
-    }
-
     let Some(value) = normal_form.as_constant() else {
         return Err(DiagnosticDto {
             code: "Number.ExpectedConstant".to_owned(),
@@ -3198,39 +3332,22 @@ fn normalize_numeric_value(source: &str, input_format: &str) -> Result<f64, Diag
         });
     };
 
-    exact_rational_to_f64(value)
+    Ok(value.clone())
 }
 
-fn exact_rational_to_f64(value: &socrates_math_core::ExactRational) -> Result<f64, DiagnosticDto> {
-    let numerator = value
-        .numerator()
-        .to_string()
-        .parse::<f64>()
-        .map_err(|_| DiagnosticDto {
-            code: "Number.OutOfRange".to_owned(),
-            message: "numeric answer is too large to compare as f64".to_owned(),
-        })?;
-    let denominator = value
-        .denominator()
-        .to_string()
-        .parse::<f64>()
-        .map_err(|_| DiagnosticDto {
-            code: "Number.OutOfRange".to_owned(),
-            message: "numeric answer is too large to compare as f64".to_owned(),
-        })?;
-
-    Ok(numerator / denominator)
-}
-
-fn numeric_error(tolerance: f64, diagnostic: DiagnosticDto) -> CompareNumericAnswerResponseDto {
+fn numeric_error(grading_mode: &str, diagnostic: DiagnosticDto) -> CompareNumericAnswerResponseDto {
     CompareNumericAnswerResponseDto {
         outcome: MathematicalOutcomeKindDto::Unknown,
-        relation: "number.within_tolerance".to_owned(),
+        relation: if grading_mode == "exact" {
+            "number.exact_equal".to_owned()
+        } else {
+            "number.within_tolerance".to_owned()
+        },
         equal: None,
-        submitted_value: None,
-        expected_value: None,
+        submitted_normalized: None,
+        expected_normalized: None,
         absolute_error: None,
-        tolerance,
+        accepted_tolerance: None,
         diagnostics: vec![diagnostic],
     }
 }
@@ -3397,5 +3514,24 @@ mod tests {
 
         assert_eq!(result.outcome, MathematicalOutcomeKindDto::Unknown);
         assert_eq!(result.solution_set, None);
+    }
+
+    #[test]
+    fn applies_verified_linear_equation_rules() {
+        let simplified = MathEngine::apply_linear_equation_rule(
+            "3(x - 2) + 4 = 2x + 9",
+            "x",
+            "algebra.linear-equation.simplify-both-sides",
+        );
+        assert_eq!(simplified.outcome, MathematicalOutcomeKindDto::Proven);
+        assert_eq!(simplified.result_latex.as_deref(), Some("3x - 2 = 2x + 9"));
+
+        let solved = MathEngine::apply_linear_equation_rule(
+            simplified.result_latex.as_deref().unwrap(),
+            "x",
+            "algebra.linear-equation.solve",
+        );
+        assert_eq!(solved.outcome, MathematicalOutcomeKindDto::Proven);
+        assert_eq!(solved.result_latex.as_deref(), Some("x = 11"));
     }
 }

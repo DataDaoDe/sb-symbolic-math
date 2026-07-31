@@ -1,5 +1,6 @@
 import type {
   ApplyRuleResponseDto,
+  ApplyLinearEquationRuleResponseDto,
   CompareEquationSolutionSetsResponseDto,
   CompareMathExpressionsResponseDto,
   CompareNumericAnswerResponseDto,
@@ -31,6 +32,7 @@ import {
   toRuleTargetDto,
 } from "./mapping.js";
 import type { MathEngine } from "./types.js";
+import type { AuthoredLinearSolutionSet, CompareAuthoredLinearSolutionSetsRequest, CompareAuthoredLinearSolutionSetsResult, ValidatePolynomialDerivationRequest, ValidatePolynomialDerivationResult } from "./types.js";
 
 export interface CreateMathEngineOptions {
   wasmEngine: WasmMathEngineBinding;
@@ -42,6 +44,17 @@ export async function createMathEngine(
   const wasmEngine = options.wasmEngine;
 
   return {
+    applyLinearEquationRule(request) {
+      if (!wasmEngine.applyLinearEquationRule) return { outcome: "unknown", relation: "rule.application", previousLatex: request.equation, resultLatex: null, step: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot apply linear equation rules." }] };
+      const dto = parseJson<ApplyLinearEquationRuleResponseDto>(wasmEngine.applyLinearEquationRule(request.equation, request.variable, request.rule));
+      return { outcome: dto.outcome, relation: "rule.application", previousLatex: dto.previous_latex, resultLatex: dto.result_latex, step: dto.step ? { rule: dto.step.rule, reason: dto.step.reason, target: dto.step.target ? { kind: "whole" } : null, inputLatex: dto.step.input_latex, outputLatex: dto.step.output_latex } : null, diagnostics: dto.diagnostics };
+    },
+    validatePolynomialDerivation(request) {
+      return validatePolynomialDerivation(wasmEngine, request);
+    },
+    compareAuthoredLinearSolutionSets(request) {
+      return compareAuthoredLinearSolutionSets(wasmEngine, request);
+    },
     solveLinearEquation(request) {
       const dto = parseJson<SolveLinearEquationResponseDto>(
         wasmEngine.solveLinearEquation(request.equation, request.variable),
@@ -346,12 +359,14 @@ export async function createMathEngine(
       if (!wasmEngine.compareNumericAnswer) {
         return {
           outcome: "unknown",
-          relation: "number.within_tolerance",
+          relation: request.grading.mode === "exact"
+            ? "number.exact_equal"
+            : "number.within_tolerance",
           equal: null,
-          submittedValue: null,
-          expectedValue: null,
+          submittedNormalized: null,
+          expectedNormalized: null,
           absoluteError: null,
-          tolerance: request.tolerance,
+          acceptedTolerance: null,
           diagnostics: [
             {
               code: "Engine.UnsupportedOperation",
@@ -366,7 +381,13 @@ export async function createMathEngine(
           request.submitted,
           request.expected,
           request.inputFormat,
-          request.tolerance,
+          request.grading.mode,
+          request.grading.mode === "approximate"
+            ? request.grading.absoluteTolerance
+            : "0",
+          request.grading.mode === "approximate"
+            ? request.grading.relativeTolerance ?? undefined
+            : undefined,
         ),
       );
       return mapCompareNumericAnswerResponse(dto);
@@ -463,6 +484,79 @@ export async function createMathEngine(
       );
       return mapApplyRuleResponse(dto);
     },
+  };
+}
+
+function validatePolynomialDerivation(wasmEngine: WasmMathEngineBinding, request: ValidatePolynomialDerivationRequest): ValidatePolynomialDerivationResult {
+  if (!wasmEngine.compareMathExpressions || request.submittedSteps.length === 0) {
+    return { outcome: "unknown", relation: "derivation.polynomial_identity", valid: null, steps: [], reachesGoal: null, diagnostics: [{ code: "Derivation.MissingStepsOrEngine", message: "At least one step and expression comparison support are required." }] };
+  }
+  const expressions = [request.initialExpression, ...request.submittedSteps];
+  const steps = expressions.slice(1).map((output, index) => {
+    const input = expressions[index]!;
+    const comparison = mapCompareMathExpressionsResponse(parseJson<CompareMathExpressionsResponseDto>(wasmEngine.compareMathExpressions!(input, output, request.inputFormat, request.variable)));
+    return { input, output, outcome: comparison.outcome, equivalent: comparison.equal, inputNormalized: comparison.leftNormalized, outputNormalized: comparison.rightNormalized, diagnostics: comparison.diagnostics };
+  });
+  const finalStep = request.submittedSteps[request.submittedSteps.length - 1]!;
+  const goal = mapCompareMathExpressionsResponse(parseJson<CompareMathExpressionsResponseDto>(wasmEngine.compareMathExpressions(finalStep, request.goalExpression, request.inputFormat, request.variable)));
+  const unknown = steps.some(step => step.equivalent === null) || goal.equal === null;
+  const valid = unknown ? null : steps.every(step => step.equivalent === true) && goal.equal === true;
+  return { outcome: unknown ? "unknown" : valid ? "proven" : "disproven", relation: "derivation.polynomial_identity", valid, steps, reachesGoal: goal.equal, diagnostics: [...steps.flatMap(step => step.diagnostics), ...goal.diagnostics] };
+}
+
+function compareAuthoredLinearSolutionSets(
+  wasmEngine: WasmMathEngineBinding,
+  request: CompareAuthoredLinearSolutionSetsRequest,
+): CompareAuthoredLinearSolutionSetsResult {
+  const diagnostics: { code: string; message: string }[] = [];
+  const compareExact = (left: string, right: string): boolean | null => {
+    if (!wasmEngine.compareNumericAnswer) {
+      diagnostics.push({ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot compare exact boundaries." });
+      return null;
+    }
+    const dto = parseJson<CompareNumericAnswerResponseDto>(wasmEngine.compareNumericAnswer(
+      left,
+      right,
+      "plain",
+      "exact",
+      "0",
+      undefined,
+    ));
+    diagnostics.push(...dto.diagnostics);
+    return dto.equal;
+  };
+  const sameBoundary = (left: string, right: string): boolean | null => compareExact(left, right);
+  const left = request.left;
+  const right = request.right;
+  if (left.kind !== right.kind) return { outcome: "disproven", relation: "linear_solution_set.equal", equal: false, diagnostics };
+
+  let equal: boolean | null;
+  switch (left.kind) {
+    case "empty":
+    case "all_reals": equal = true; break;
+    case "point": equal = sameBoundary(left.value, (right as Extract<AuthoredLinearSolutionSet, { kind: "point" }>).value); break;
+    case "ray": {
+      const other = right as Extract<AuthoredLinearSolutionSet, { kind: "ray" }>;
+      if (left.direction !== other.direction || left.inclusive !== other.inclusive) equal = false;
+      else equal = sameBoundary(left.boundary, other.boundary);
+      break;
+    }
+    case "interval": {
+      const other = right as Extract<AuthoredLinearSolutionSet, { kind: "interval" }>;
+      if (left.lower_inclusive !== other.lower_inclusive || left.upper_inclusive !== other.upper_inclusive) equal = false;
+      else {
+        const lower = sameBoundary(left.lower, other.lower);
+        const upper = sameBoundary(left.upper, other.upper);
+        equal = lower === null || upper === null ? null : lower && upper;
+      }
+      break;
+    }
+  }
+  return {
+    outcome: equal === null ? "unknown" : equal ? "proven" : "disproven",
+    relation: "linear_solution_set.equal",
+    equal,
+    diagnostics,
   };
 }
 

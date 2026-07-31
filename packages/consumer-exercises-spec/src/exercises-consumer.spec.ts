@@ -38,7 +38,9 @@ export interface NumericAnswerKey {
   prompt: string;
   inputFormat: MathExpressionInputFormat;
   expected: string;
-  tolerance: number;
+  grading:
+    | { mode: "exact" }
+    | { mode: "approximate"; absoluteTolerance: string; relativeTolerance: string | null };
 }
 
 export interface SetExpressionAnswerKey {
@@ -506,7 +508,7 @@ export function gradeNumericAnswer(
     submitted: response.latex,
     expected: answerKey.expected,
     inputFormat: answerKey.inputFormat,
-    tolerance: answerKey.tolerance,
+    grading: answerKey.grading,
   });
 
   return {

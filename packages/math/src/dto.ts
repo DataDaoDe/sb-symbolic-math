@@ -117,10 +117,10 @@ export interface CompareNumericAnswerResponseDto {
   outcome: MathematicalOutcomeDto;
   relation: string;
   equal: boolean | null;
-  submitted_value: number | null;
-  expected_value: number | null;
-  absolute_error: number | null;
-  tolerance: number;
+  submitted_normalized: ExactValueDto | null;
+  expected_normalized: ExactValueDto | null;
+  absolute_error: ExactValueDto | null;
+  accepted_tolerance: ExactValueDto | null;
   diagnostics: DiagnosticDto[];
 }
 
@@ -175,8 +175,17 @@ export interface ApplyRuleResponseDto {
   step: MathDerivationStepDto | null;
   diagnostics: DiagnosticDto[];
 }
+export interface ApplyLinearEquationRuleResponseDto {
+  outcome: MathematicalOutcomeDto;
+  relation: string;
+  previous_latex: string | null;
+  result_latex: string | null;
+  step: MathDerivationStepDto | null;
+  diagnostics: DiagnosticDto[];
+}
 
 export interface WasmMathEngineBinding {
+  applyLinearEquationRule?(source: string, variable: string, rule: string): string;
   solveLinearEquation(source: string, variable: string): string;
   compareEquationSolutionSets(
     leftSource: string,
@@ -234,7 +243,9 @@ export interface WasmMathEngineBinding {
     submittedSource: string,
     expectedSource: string,
     inputFormat: string,
-    tolerance: number,
+    gradingMode: string,
+    absoluteTolerance: string,
+    relativeTolerance: string | undefined,
   ): string;
   differentiateMathExpression?(
     source: string,

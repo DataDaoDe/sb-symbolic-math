@@ -94,6 +94,55 @@ export interface CompareMathExpressionsResult {
   diagnostics: MathDiagnostic[];
 }
 
+export type AuthoredLinearSolutionSet =
+  | { kind: "empty" }
+  | { kind: "all_reals" }
+  | { kind: "point"; value: string }
+  | { kind: "ray"; direction: "below" | "above"; boundary: string; inclusive: boolean }
+  | { kind: "interval"; lower: string; upper: string; lower_inclusive: boolean; upper_inclusive: boolean };
+
+export interface CompareAuthoredLinearSolutionSetsRequest {
+  left: AuthoredLinearSolutionSet;
+  right: AuthoredLinearSolutionSet;
+}
+
+export interface CompareAuthoredLinearSolutionSetsResult {
+  outcome: MathematicalOutcome;
+  relation: "linear_solution_set.equal";
+  equal: boolean | null;
+  diagnostics: MathDiagnostic[];
+}
+
+export interface ValidatePolynomialDerivationRequest {
+  initialExpression: string;
+  submittedSteps: readonly string[];
+  goalExpression: string;
+  inputFormat: "latex";
+  variable: string;
+}
+
+export interface PolynomialDerivationStepResult {
+  input: string;
+  output: string;
+  outcome: MathematicalOutcome;
+  equivalent: boolean | null;
+  inputNormalized: MathExpression | null;
+  outputNormalized: MathExpression | null;
+  diagnostics: MathDiagnostic[];
+}
+
+export interface ValidatePolynomialDerivationResult {
+  outcome: MathematicalOutcome;
+  relation: "derivation.polynomial_identity";
+  valid: boolean | null;
+  steps: PolynomialDerivationStepResult[];
+  reachesGoal: boolean | null;
+  diagnostics: MathDiagnostic[];
+}
+export type LinearEquationRule = "algebra.linear-equation.simplify-both-sides" | "algebra.linear-equation.solve";
+export interface ApplyLinearEquationRuleRequest { equation: string; variable: string; rule: LinearEquationRule }
+export interface ApplyLinearEquationRuleResult { outcome: MathematicalOutcome; relation: "rule.application"; previousLatex: string | null; resultLatex: string | null; step: MathDerivationStep | null; diagnostics: MathDiagnostic[] }
+
 export interface NormalizeSetExpressionRequest {
   expression: string;
   inputFormat: SetExpressionInputFormat;
@@ -204,18 +253,24 @@ export interface EvaluateFiniteRelationSetOperationRequest {
 export interface CompareNumericAnswerRequest {
   submitted: string;
   expected: string;
-  inputFormat: MathExpressionInputFormat;
-  tolerance: number;
+  inputFormat: MathExpressionInputFormat | "plain";
+  grading:
+    | { mode: "exact" }
+    | {
+        mode: "approximate";
+        absoluteTolerance: string;
+        relativeTolerance: string | null;
+      };
 }
 
 export interface CompareNumericAnswerResult {
   outcome: MathematicalOutcome;
-  relation: "number.within_tolerance";
+  relation: "number.exact_equal" | "number.within_tolerance";
   equal: boolean | null;
-  submittedValue: number | null;
-  expectedValue: number | null;
-  absoluteError: number | null;
-  tolerance: number;
+  submittedNormalized: ExactValue | null;
+  expectedNormalized: ExactValue | null;
+  absoluteError: ExactValue | null;
+  acceptedTolerance: ExactValue | null;
   diagnostics: MathDiagnostic[];
 }
 
@@ -293,6 +348,15 @@ export interface ApplyMathExpressionRuleResult {
 }
 
 export interface MathEngine {
+  applyLinearEquationRule(request: ApplyLinearEquationRuleRequest): ApplyLinearEquationRuleResult;
+  validatePolynomialDerivation(
+    request: ValidatePolynomialDerivationRequest,
+  ): ValidatePolynomialDerivationResult;
+
+  compareAuthoredLinearSolutionSets(
+    request: CompareAuthoredLinearSolutionSetsRequest,
+  ): CompareAuthoredLinearSolutionSetsResult;
+
   solveLinearEquation(
     request: SolveLinearEquationRequest,
   ): SolveLinearEquationResult;

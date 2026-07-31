@@ -19,6 +19,10 @@ function runApi(args: readonly string[]): string {
 }
 
 export class LocalRustMathEngineBinding {
+  applyLinearEquationRule(source: string, variable: string, rule: string): string {
+    return runApi(["apply-equation-rule", source, variable, rule]);
+  }
+
   solveLinearEquation(source: string, variable: string): string {
     return runApi(["solve-linear", source, variable]);
   }
@@ -58,14 +62,18 @@ export class LocalRustMathEngineBinding {
     submittedSource: string,
     expectedSource: string,
     inputFormat: string,
-    tolerance: number,
+    gradingMode: string,
+    absoluteTolerance: string,
+    relativeTolerance: string | undefined,
   ): string {
     return runApi([
       "compare-numeric",
       submittedSource,
       expectedSource,
       inputFormat,
-      tolerance.toString(),
+      gradingMode,
+      absoluteTolerance,
+      relativeTolerance ?? "",
     ]);
   }
 

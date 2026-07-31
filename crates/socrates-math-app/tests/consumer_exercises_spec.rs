@@ -728,18 +728,43 @@ fn math_equation_compares_solution_sets_not_surface_expression_forms() {
 
 #[test]
 fn numeric_answer_accepts_values_inside_absolute_tolerance() {
-    let result =
-        MathEngine::compare_numeric_answer("\\frac{333}{1000}", "\\frac{1}{3}", "latex", 0.001);
+    let result = MathEngine::compare_numeric_answer(
+        "\\frac{333}{1000}",
+        "\\frac{1}{3}",
+        "latex",
+        "approximate",
+        "0.001",
+        None,
+    );
 
     assert_eq!(result.outcome, MathematicalOutcomeKindDto::Proven);
     assert_eq!(result.equal, Some(true));
-    assert!(result.absolute_error.unwrap() <= result.tolerance);
+    assert_eq!(
+        result.absolute_error,
+        Some(socrates_math_protocol::ExactValueDto::Rational {
+            numerator: "1".to_owned(),
+            denominator: "3000".to_owned(),
+        })
+    );
+    assert_eq!(
+        result.accepted_tolerance,
+        Some(socrates_math_protocol::ExactValueDto::Rational {
+            numerator: "1".to_owned(),
+            denominator: "1000".to_owned(),
+        })
+    );
 }
 
 #[test]
 fn numeric_answer_rejects_values_outside_absolute_tolerance() {
-    let result =
-        MathEngine::compare_numeric_answer("\\frac{333}{1000}", "\\frac{1}{3}", "latex", 0.0001);
+    let result = MathEngine::compare_numeric_answer(
+        "\\frac{333}{1000}",
+        "\\frac{1}{3}",
+        "latex",
+        "approximate",
+        "0.0001",
+        None,
+    );
 
     assert_eq!(result.outcome, MathematicalOutcomeKindDto::Disproven);
     assert_eq!(result.equal, Some(false));
@@ -754,7 +779,8 @@ fn numeric_answer_rejects_values_outside_absolute_tolerance() {
 
 #[test]
 fn numeric_answer_requires_a_constant_value() {
-    let result = MathEngine::compare_numeric_answer("x + 1", "2", "latex", 0.001);
+    let result =
+        MathEngine::compare_numeric_answer("x + 1", "2", "latex", "approximate", "0.001", None);
 
     assert_eq!(result.outcome, MathematicalOutcomeKindDto::Unknown);
     assert_eq!(result.equal, None);
@@ -780,14 +806,60 @@ fn direct_expression_comparison_returns_both_normal_forms() {
 
 #[test]
 fn direct_numeric_comparison_exposes_values_for_feedback() {
-    let result: CompareNumericAnswerResponseDto =
-        MathEngine::compare_numeric_answer("\\frac{1}{2}", "\\frac{2}{4}", "latex", 0.0);
+    let result: CompareNumericAnswerResponseDto = MathEngine::compare_numeric_answer(
+        "\\frac{1}{2}",
+        "\\frac{2}{4}",
+        "latex",
+        "exact",
+        "0",
+        None,
+    );
 
     assert_eq!(result.outcome, MathematicalOutcomeKindDto::Proven);
     assert_eq!(result.equal, Some(true));
-    assert_eq!(result.submitted_value, Some(0.5));
-    assert_eq!(result.expected_value, Some(0.5));
-    assert_eq!(result.absolute_error, Some(0.0));
+    let half = socrates_math_protocol::ExactValueDto::Rational {
+        numerator: "1".to_owned(),
+        denominator: "2".to_owned(),
+    };
+    assert_eq!(result.submitted_normalized, Some(half.clone()));
+    assert_eq!(result.expected_normalized, Some(half));
+    assert_eq!(
+        result.absolute_error,
+        Some(socrates_math_protocol::ExactValueDto::Integer {
+            value: "0".to_owned(),
+        })
+    );
+    assert_eq!(result.accepted_tolerance, None);
+}
+
+#[test]
+fn plain_decimal_and_fraction_compare_as_the_same_exact_rational() {
+    let result = MathEngine::compare_numeric_answer("0.75", "6/8", "plain", "exact", "0", None);
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Proven);
+    assert_eq!(result.equal, Some(true));
+    assert_eq!(
+        result.submitted_normalized,
+        Some(socrates_math_protocol::ExactValueDto::Rational {
+            numerator: "3".to_owned(),
+            denominator: "4".to_owned(),
+        })
+    );
+}
+
+#[test]
+fn exact_numeric_comparison_does_not_lose_large_integer_precision() {
+    let result = MathEngine::compare_numeric_answer(
+        "9007199254740993",
+        "9007199254740992",
+        "plain",
+        "exact",
+        "0",
+        None,
+    );
+
+    assert_eq!(result.outcome, MathematicalOutcomeKindDto::Disproven);
+    assert_eq!(result.equal, Some(false));
 }
 
 #[test]

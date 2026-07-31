@@ -88,6 +88,43 @@ checked or clearly marked with an appropriate trust status.
 
 ## 6. System Architecture
 
+### 6.1 Ownership of mathematical computation
+
+Symbolic Math is the sole authoritative owner of mathematical interpretation
+and computation in the Socrates Academy ecosystem. Application and exercise
+repositories MUST NOT independently implement mathematical parsers,
+canonicalizers, equivalence procedures, solvers, symbolic transformations, or
+domain algorithms.
+
+This ownership includes, without limitation:
+
+- exact integer, rational, decimal, and algebraic-number normalization;
+- numeric evaluation and exact or approximate comparison;
+- canonical authored linear solution-set comparison for equations and
+  inequalities, including empty/all-real sets, exact points, rays, and bounded
+  intervals;
+- validation of captured polynomial derivation chains by checking every
+  adjacent identity and the declared final goal;
+- executable, replayable linear-equation transformations with stable rule
+  identifiers and engine-produced output states;
+- expression, equation, inequality, interval, vector, matrix, and set
+  interpretation;
+- simplification, expansion, factorization, substitution, and equivalence;
+- equation and inequality solving;
+- differentiation, integration, limits, and series manipulation;
+- derivation generation, rule application, proof evidence, and step checking;
+- graphable-function evaluation and other mathematical domain algorithms.
+
+Exercise systems MAY define pedagogical answer contracts, select a requested
+mathematical relation and policy, and translate engine results into learner
+evidence. They MUST delegate the mathematical decision itself to a stable
+Symbolic Math port. User interfaces MAY render and collect mathematical input
+but MUST NOT become an alternative source of mathematical truth.
+
+Exact values MUST remain exact through the public DTO and WebAssembly boundary.
+Conversion to floating-point is permitted only for an explicitly approximate
+operation and MUST NOT determine exact equality.
+
 The intended processing flow is:
 
 ```text
@@ -1465,6 +1502,14 @@ MUST support:
 
 Powers MAY be parsed if needed by surrounding infrastructure, but solving
 nonlinear equations is outside this slice.
+
+The first public whole-equation transformation vocabulary is intentionally
+bounded to `algebra.linear-equation.simplify-both-sides` and
+`algebra.linear-equation.solve`. Both operations MUST parse and elaborate the
+input equation, return a stable derivation step, and fail honestly outside the
+supported linear rational domain. Later granular balance operations MUST carry
+explicit operands and semantic targets; they MUST NOT be implemented as string
+rewrites in application code.
 
 ### 35.2 Initial theories
 

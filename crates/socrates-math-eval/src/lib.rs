@@ -242,7 +242,10 @@ fn partial_eval(term: &SemanticTerm, assignment: &Assignment) -> PartialEval {
                 Err(ExactValueError::DivisionByZero | ExactValueError::ZeroDenominator) => {
                     PartialEval::Undefined("division by zero".to_owned())
                 }
-                Err(ExactValueError::InvalidIntegerLiteral(_)) => PartialEval::Unsupported,
+                Err(
+                    ExactValueError::InvalidIntegerLiteral(_)
+                    | ExactValueError::InvalidNumericLiteral(_),
+                ) => PartialEval::Unsupported,
             }
         }
     }

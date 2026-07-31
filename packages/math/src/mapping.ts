@@ -183,12 +183,14 @@ export function mapCompareNumericAnswerResponse(
 ): CompareNumericAnswerResult {
   return {
     outcome: dto.outcome,
-    relation: "number.within_tolerance",
+    relation: dto.relation === "number.exact_equal"
+      ? "number.exact_equal"
+      : "number.within_tolerance",
     equal: dto.equal,
-    submittedValue: dto.submitted_value,
-    expectedValue: dto.expected_value,
-    absoluteError: dto.absolute_error,
-    tolerance: dto.tolerance,
+    submittedNormalized: dto.submitted_normalized ? mapExactValue(dto.submitted_normalized) : null,
+    expectedNormalized: dto.expected_normalized ? mapExactValue(dto.expected_normalized) : null,
+    absoluteError: dto.absolute_error ? mapExactValue(dto.absolute_error) : null,
+    acceptedTolerance: dto.accepted_tolerance ? mapExactValue(dto.accepted_tolerance) : null,
     diagnostics: dto.diagnostics,
   };
 }
