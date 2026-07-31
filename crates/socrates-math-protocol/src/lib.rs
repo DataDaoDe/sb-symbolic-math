@@ -251,6 +251,17 @@ pub struct ApplyLinearEquationRuleResponseDto {
     pub diagnostics: Vec<DiagnosticDto>,
 }
 
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RunLinearEquationStrategyResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub strategy: String,
+    pub initial_latex: String,
+    pub result_latex: Option<String>,
+    pub steps: Vec<MathDerivationStepDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
 #[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum MathematicalOutcomeKindDto {

@@ -21,6 +21,7 @@ interface Experiment {
   secondary: string;
   variable: string;
   rule: LinearEquationRule;
+  operand?: string;
   tolerance: string;
 }
 
@@ -42,21 +43,21 @@ const labels: Record<Operation, string> = {
   integrate: "Integrate",
 };
 
-const examples: Record<Operation, Pick<Experiment, "primary" | "secondary" | "variable" | "rule" | "tolerance">[]> = {
+const examples: Record<Operation, Omit<Experiment, "operation">[]> = {
   normalize: [{ primary: "3(x - 2) + 4", secondary: "", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" }],
   compareExpressions: [
     { primary: "(x + 1)(x - 1)", secondary: "x^2 - 1", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" },
     { primary: "\\frac{1}{2}x + \\frac{1}{3}x", secondary: "\\frac{5}{6}x", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" },
   ],
   solveLinear: [
-    { primary: "3(x - 2) + 4 = 2x + 9", secondary: "", variable: "x", rule: "algebra.linear-equation.solve", tolerance: "0.001" },
-    { primary: "2(x + 1) = 2x + 2", secondary: "", variable: "x", rule: "algebra.linear-equation.solve", tolerance: "0.001" },
+    { primary: "3(x - 2) + 4 = 2x + 9", secondary: "", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" },
+    { primary: "2(x + 1) = 2x + 2", secondary: "", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" },
   ],
-  compareEquations: [{ primary: "x + 1 = 3", secondary: "2x = 4", variable: "x", rule: "algebra.linear-equation.solve", tolerance: "0.001" }],
-  applyEquationRule: [{ primary: "3(x - 2) + 4 = 2x + 9", secondary: "", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" }],
-  compareNumeric: [{ primary: "\\frac{333}{1000}", secondary: "\\frac{1}{3}", variable: "x", rule: "algebra.linear-equation.solve", tolerance: "0.001" }],
-  differentiate: [{ primary: "x^3 + 2x", secondary: "", variable: "x", rule: "algebra.linear-equation.solve", tolerance: "0.001" }],
-  integrate: [{ primary: "x^3", secondary: "", variable: "x", rule: "algebra.linear-equation.solve", tolerance: "0.001" }],
+  compareEquations: [{ primary: "x + 1 = 3", secondary: "2x = 4", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" }],
+  applyEquationRule: [{ primary: "3x - 2 = 2x + 9", secondary: "", variable: "x", rule: "algebra.equation.subtract-both-sides", operand: "2x", tolerance: "0.001" }],
+  compareNumeric: [{ primary: "\\frac{333}{1000}", secondary: "\\frac{1}{3}", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" }],
+  differentiate: [{ primary: "x^3 + 2x", secondary: "", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" }],
+  integrate: [{ primary: "x^3", secondary: "", variable: "x", rule: "algebra.linear-equation.simplify-both-sides", tolerance: "0.001" }],
 };
 
 const initial: Experiment = { operation: "normalize", ...examples.normalize[0] };
@@ -66,7 +67,8 @@ let lastResult: unknown = null;
 let history = readHistory();
 let workbenchEquation = "3(x - 2) + 4 = 2x + 9";
 let workbenchVariable = "x";
-let workbenchSteps: Array<{ rule: LinearEquationRule; input: string; output: string }> = [];
+let workbenchOperand = "2x";
+let workbenchSteps: Array<{ rule: string; input: string; output: string }> = [];
 
 const root = document.querySelector<HTMLDivElement>("#app");
 if (!root) throw new Error("Laboratory root element is missing.");
@@ -119,6 +121,7 @@ function renderExperiment(): void {
           ${needsSecondary ? field("secondary", secondaryLabel(current.operation), current.secondary, "textarea") : ""}
           ${!isNumeric ? field("variable", "Variable", current.variable) : ""}
           ${isRule ? selectRule(current.rule) : ""}
+          ${isRule && current.rule !== "algebra.linear-equation.simplify-both-sides" ? field("operand", "Operand", current.operand ?? "") : ""}
           ${isNumeric ? field("tolerance", "Absolute tolerance", current.tolerance) : ""}
         </div>
         <div class="math-preview-grid">
@@ -168,7 +171,7 @@ function runCurrent(): void {
       case "compareExpressions": lastResult = engine.compareMathExpressions({ leftExpression: current.primary, rightExpression: current.secondary, inputFormat: "latex", variable: current.variable }); break;
       case "solveLinear": lastResult = engine.solveLinearEquation({ equation: current.primary, variable: current.variable }); break;
       case "compareEquations": lastResult = engine.compareEquationSolutionSets({ leftEquation: current.primary, rightEquation: current.secondary, variable: current.variable }); break;
-      case "applyEquationRule": lastResult = engine.applyLinearEquationRule({ equation: current.primary, variable: current.variable, rule: current.rule }); break;
+      case "applyEquationRule": lastResult = engine.applyLinearEquationRule({ equation: current.primary, variable: current.variable, rule: current.rule, operand: current.operand ?? null }); break;
       case "compareNumeric": lastResult = engine.compareNumericAnswer({ submitted: current.primary, expected: current.secondary, inputFormat: "latex", grading: { mode: "approximate", absoluteTolerance: current.tolerance, relativeTolerance: null } }); break;
       case "differentiate": lastResult = engine.differentiateMathExpression({ expression: current.primary, inputFormat: "latex", variable: current.variable }); break;
       case "integrate": lastResult = engine.integrateMathExpression({ expression: current.primary, inputFormat: "latex", variable: current.variable }); break;
@@ -196,7 +199,13 @@ function renderWorkbench(): void {
         <div class="rule-actions">
           <p>Apply a verified whole-equation rule</p>
           <button data-workbench-rule="algebra.linear-equation.simplify-both-sides">Simplify both sides</button>
-          <button data-workbench-rule="algebra.linear-equation.solve">Solve completely</button>
+          <input id="workbench-operand" value="${escapeAttribute(workbenchOperand)}" aria-label="Rule operand" />
+          <button data-workbench-rule="algebra.equation.add-both-sides">Add operand</button>
+          <button data-workbench-rule="algebra.equation.subtract-both-sides">Subtract operand</button>
+          <button data-workbench-rule="algebra.equation.multiply-both-sides">Multiply by operand</button>
+          <button data-workbench-rule="algebra.equation.divide-both-sides">Divide by operand</button>
+          <p class="strategy-label">Or run a problem-solving strategy</p>
+          <button id="run-solve-strategy">Solve using verified rules</button>
         </div>
       </section>
       <aside class="workbench-inspector"><p class="eyebrow">Derivation data</p><h2>${workbenchSteps.length} verified ${workbenchSteps.length === 1 ? "step" : "steps"}</h2><pre>${escapeHtml(JSON.stringify(workbenchSteps, null, 2))}</pre></aside>
@@ -206,15 +215,25 @@ function renderWorkbench(): void {
   const variableInput = panel.querySelector<HTMLInputElement>("[data-field='workbench-variable']");
   variableInput?.addEventListener("input", () => { workbenchVariable = variableInput.value; });
   panel.querySelectorAll<HTMLButtonElement>("[data-workbench-rule]").forEach(button => button.addEventListener("click", () => applyWorkbenchRule(button.dataset.workbenchRule as LinearEquationRule)));
+  panel.querySelector<HTMLInputElement>("#workbench-operand")?.addEventListener("input", event => { workbenchOperand = (event.target as HTMLInputElement).value; });
+  panel.querySelector<HTMLButtonElement>("#run-solve-strategy")?.addEventListener("click", runWorkbenchStrategy);
   panel.querySelector<HTMLButtonElement>("#reset-workbench")?.addEventListener("click", () => { workbenchEquation = "3(x - 2) + 4 = 2x + 9"; workbenchVariable = "x"; workbenchSteps = []; renderWorkbench(); });
   panel.querySelectorAll<HTMLElement>("[data-render-latex]").forEach(preview => renderMath(preview, preview.dataset.renderLatex ?? ""));
 }
 
 function applyWorkbenchRule(rule: LinearEquationRule): void {
   const input = workbenchSteps.at(-1)?.output ?? workbenchEquation;
-  const result = engine.applyLinearEquationRule({ equation: input, variable: workbenchVariable, rule });
+  const result = engine.applyLinearEquationRule({ equation: input, variable: workbenchVariable, rule, operand: rule === "algebra.linear-equation.simplify-both-sides" ? null : workbenchOperand });
   if (result.outcome === "proven" && result.resultLatex) workbenchSteps.push({ rule, input, output: result.resultLatex });
   else window.alert(result.diagnostics.map(item => `${item.code}: ${item.message}`).join("\n") || `Rule outcome: ${result.outcome}`);
+  renderWorkbench();
+}
+
+function runWorkbenchStrategy(): void {
+  const initial = workbenchSteps.length ? workbenchSteps[0].input : workbenchEquation;
+  const result = engine.runLinearEquationStrategy({ equation: initial, variable: workbenchVariable, strategy: "algebra.linear-equation.solve" });
+  if (result.outcome === "proven") workbenchSteps = result.steps.flatMap(step => step.inputLatex && step.outputLatex ? [{ rule: step.rule, input: step.inputLatex, output: step.outputLatex }] : []);
+  else window.alert(result.diagnostics.map(item => `${item.code}: ${item.message}`).join("\n") || `Strategy outcome: ${result.outcome}`);
   renderWorkbench();
 }
 
@@ -265,13 +284,13 @@ function field(name: string, label: string, value: string, kind: "input" | "text
 }
 
 function selectRule(value: LinearEquationRule): string {
-  return `<label class="field"><span>Rule</span><select data-field="rule"><option value="algebra.linear-equation.simplify-both-sides" ${value.endsWith("simplify-both-sides") ? "selected" : ""}>Simplify both sides</option><option value="algebra.linear-equation.solve" ${value.endsWith("solve") ? "selected" : ""}>Solve completely</option></select></label>`;
+  return `<label class="field"><span>Rule</span><select data-field="rule"><option value="algebra.linear-equation.simplify-both-sides" ${value.endsWith("simplify-both-sides") ? "selected" : ""}>Simplify both sides</option><option value="algebra.equation.add-both-sides" ${value.endsWith("add-both-sides") ? "selected" : ""}>Add to both sides</option><option value="algebra.equation.subtract-both-sides" ${value.endsWith("subtract-both-sides") ? "selected" : ""}>Subtract from both sides</option><option value="algebra.equation.multiply-both-sides" ${value.endsWith("multiply-both-sides") ? "selected" : ""}>Multiply both sides</option><option value="algebra.equation.divide-both-sides" ${value.endsWith("divide-both-sides") ? "selected" : ""}>Divide both sides</option></select></label>`;
 }
 
 function mathCard(label: string, source: string): string { return `<div class="math-card"><small>${label} preview</small><div data-math-source="${label === "Input" ? "primary" : "secondary"}">${escapeHtml(source)}</div></div>`; }
 function derivationLine(latex: string, reason: string): string { return `<article><div data-render-latex="${escapeAttribute(latex)}"></div><p>${escapeHtml(reason)}</p></article>`; }
 function outcomeBadge(outcome: MathematicalOutcome): string { return `<span class="outcome outcome-${outcome}">${outcome}</span>`; }
-function ruleLabel(rule: LinearEquationRule): string { return rule.endsWith("solve") ? "Solve completely" : "Simplify both sides"; }
+function ruleLabel(rule: string): string { return rule.split(".").at(-1)?.replaceAll("-", " ") ?? rule; }
 function primaryLabel(operation: Operation): string { return operation === "compareNumeric" ? "Submitted value" : operation.includes("Equation") || operation === "solveLinear" ? "Equation" : "Expression"; }
 function secondaryLabel(operation: Operation): string { return operation === "compareNumeric" ? "Expected value" : operation === "compareEquations" ? "Second equation" : "Second expression"; }
 function operationHint(operation: Operation): string { return ({ normalize: "Canonical polynomial form", compareExpressions: "Polynomial identity", solveLinear: "Exact rational solutions", compareEquations: "Solution-set equality", applyEquationRule: "Verified transformation", compareNumeric: "Exact or tolerance policy", differentiate: "Symbolic derivative", integrate: "Symbolic antiderivative" })[operation]; }

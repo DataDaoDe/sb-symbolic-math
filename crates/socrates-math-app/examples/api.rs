@@ -23,9 +23,12 @@ fn main() {
             ))
         }
         "apply-equation-rule" => {
-            expect_len(&args, 4);
+            expect_len(&args, 5);
             serde_json::to_string(&MathEngine::apply_linear_equation_rule(
-                &args[1], &args[2], &args[3],
+                &args[1],
+                &args[2],
+                &args[3],
+                (!args[4].is_empty()).then_some(args[4].as_str()),
             ))
         }
         "normalize-expression" => {
@@ -86,7 +89,7 @@ fn usage() -> ! {
         "usage:
   api solve-linear <equation> <variable>
   api compare-equations <left-equation> <right-equation> <variable>
-  api apply-equation-rule <equation> <variable> <rule-id>
+  api apply-equation-rule <equation> <variable> <rule-id> <operand-or-empty>
   api normalize-expression <expression> <input-format> <variable>
   api compare-expressions <left-expression> <right-expression> <input-format> <variable>
   api compare-numeric <submitted> <expected> <input-format> <grading-mode> <absolute-tolerance> <relative-tolerance-or-empty>

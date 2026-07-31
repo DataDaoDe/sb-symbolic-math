@@ -183,9 +183,19 @@ export interface ApplyLinearEquationRuleResponseDto {
   step: MathDerivationStepDto | null;
   diagnostics: DiagnosticDto[];
 }
+export interface RunLinearEquationStrategyResponseDto {
+  outcome: MathematicalOutcomeDto;
+  relation: string;
+  strategy: string;
+  initial_latex: string;
+  result_latex: string | null;
+  steps: MathDerivationStepDto[];
+  diagnostics: DiagnosticDto[];
+}
 
 export interface WasmMathEngineBinding {
-  applyLinearEquationRule?(source: string, variable: string, rule: string): string;
+  applyLinearEquationRule?(source: string, variable: string, rule: string, operand?: string | null): string;
+  runLinearEquationStrategy?(source: string, variable: string, strategy: string): string;
   solveLinearEquation(source: string, variable: string): string;
   compareEquationSolutionSets(
     leftSource: string,

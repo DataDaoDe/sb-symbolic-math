@@ -1,6 +1,7 @@
 import type {
   ApplyRuleResponseDto,
   ApplyLinearEquationRuleResponseDto,
+  RunLinearEquationStrategyResponseDto,
   CompareEquationSolutionSetsResponseDto,
   CompareMathExpressionsResponseDto,
   CompareNumericAnswerResponseDto,
@@ -44,9 +45,14 @@ export async function createMathEngine(
   const wasmEngine = options.wasmEngine;
 
   return {
+    runLinearEquationStrategy(request) {
+      if (!wasmEngine.runLinearEquationStrategy) return { outcome: "unknown", relation: "strategy.linear-equation", strategy: request.strategy, initialLatex: request.equation, resultLatex: null, steps: [], diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot run linear-equation strategies." }] };
+      const dto = parseJson<RunLinearEquationStrategyResponseDto>(wasmEngine.runLinearEquationStrategy(request.equation, request.variable, request.strategy));
+      return { outcome: dto.outcome, relation: "strategy.linear-equation", strategy: request.strategy, initialLatex: dto.initial_latex, resultLatex: dto.result_latex, steps: dto.steps.map(step => ({ rule: step.rule, reason: step.reason, target: step.target ? { kind: "whole" as const } : null, inputLatex: step.input_latex, outputLatex: step.output_latex })), diagnostics: dto.diagnostics };
+    },
     applyLinearEquationRule(request) {
       if (!wasmEngine.applyLinearEquationRule) return { outcome: "unknown", relation: "rule.application", previousLatex: request.equation, resultLatex: null, step: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot apply linear equation rules." }] };
-      const dto = parseJson<ApplyLinearEquationRuleResponseDto>(wasmEngine.applyLinearEquationRule(request.equation, request.variable, request.rule));
+      const dto = parseJson<ApplyLinearEquationRuleResponseDto>(wasmEngine.applyLinearEquationRule(request.equation, request.variable, request.rule, request.operand));
       return { outcome: dto.outcome, relation: "rule.application", previousLatex: dto.previous_latex, resultLatex: dto.result_latex, step: dto.step ? { rule: dto.step.rule, reason: dto.step.reason, target: dto.step.target ? { kind: "whole" } : null, inputLatex: dto.step.input_latex, outputLatex: dto.step.output_latex } : null, diagnostics: dto.diagnostics };
     },
     validatePolynomialDerivation(request) {

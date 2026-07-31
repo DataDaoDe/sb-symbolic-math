@@ -18,15 +18,32 @@ impl WasmMathEngine {
             .map_err(|error| JsValue::from_str(&error.to_string()))
     }
 
+    #[wasm_bindgen(js_name = runLinearEquationStrategy)]
+    pub fn run_linear_equation_strategy(
+        &self,
+        source: &str,
+        variable: &str,
+        strategy: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::run_linear_equation_strategy(
+            source, variable, strategy,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
     #[wasm_bindgen(js_name = applyLinearEquationRule)]
     pub fn apply_linear_equation_rule(
         &self,
         source: &str,
         variable: &str,
         rule: &str,
+        operand: Option<String>,
     ) -> Result<String, JsValue> {
         serde_json::to_string(&MathEngine::apply_linear_equation_rule(
-            source, variable, rule,
+            source,
+            variable,
+            rule,
+            operand.as_deref(),
         ))
         .map_err(|error| JsValue::from_str(&error.to_string()))
     }

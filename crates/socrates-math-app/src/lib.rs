@@ -13,8 +13,9 @@ use socrates_math_protocol::{
     EvaluateSetStatementResponseDto, ExactValueDto, ListApplicableRulesResponseDto,
     MathDerivationStepDto, MathExpressionDto, MathematicalOutcomeKindDto,
     NormalizeMathExpressionResponseDto, NormalizeSetExpressionResponseDto,
-    RuleApplicabilityStatusDto, RuleTargetDto, SetBindingDto, SetExpressionDto, SetStatementDto,
-    SolutionSetDto, SolveLinearEquationResponseDto, TransformMathExpressionResponseDto,
+    RuleApplicabilityStatusDto, RuleTargetDto, RunLinearEquationStrategyResponseDto, SetBindingDto,
+    SetExpressionDto, SetStatementDto, SolutionSetDto, SolveLinearEquationResponseDto,
+    TransformMathExpressionResponseDto,
 };
 use socrates_math_render::LatexRenderer;
 use socrates_math_solve::LinearEquationSolver;
@@ -24,10 +25,132 @@ use std::collections::{BTreeMap, BTreeSet};
 pub struct MathEngine;
 
 impl MathEngine {
+    pub fn run_linear_equation_strategy(
+        source: &str,
+        variable: &str,
+        strategy: &str,
+    ) -> RunLinearEquationStrategyResponseDto {
+        let mut response = RunLinearEquationStrategyResponseDto {
+            outcome: MathematicalOutcomeKindDto::Unknown,
+            relation: "strategy.linear-equation".to_owned(),
+            strategy: strategy.to_owned(),
+            initial_latex: source.to_owned(),
+            result_latex: None,
+            steps: Vec::new(),
+            diagnostics: Vec::new(),
+        };
+        if strategy != "algebra.linear-equation.solve" {
+            response.diagnostics.push(DiagnosticDto {
+                code: "EquationStrategy.Unsupported".to_owned(),
+                message: format!("unknown linear equation strategy: {strategy}"),
+            });
+            return response;
+        }
+        let judgment = match parse_and_elaborate_statement(source, variable) {
+            Ok(value) => value,
+            Err(diagnostic) => {
+                response.diagnostics.push(diagnostic);
+                return response;
+            }
+        };
+        let left = match LinearNormalizer::normalize(&judgment.left, variable) {
+            MathematicalOutcome::Proven(value) => value.value.normal_form,
+            _ => {
+                response.diagnostics.push(DiagnosticDto {
+                    code: "EquationStrategy.Unsupported".to_owned(),
+                    message: "left side is outside the linear rational domain".to_owned(),
+                });
+                return response;
+            }
+        };
+        let right = match LinearNormalizer::normalize(&judgment.right, variable) {
+            MathematicalOutcome::Proven(value) => value.value.normal_form,
+            _ => {
+                response.diagnostics.push(DiagnosticDto {
+                    code: "EquationStrategy.Unsupported".to_owned(),
+                    message: "right side is outside the linear rational domain".to_owned(),
+                });
+                return response;
+            }
+        };
+        let mut current = source.to_owned();
+        let mut apply = |rule: &str, operand: Option<String>| -> Result<(), DiagnosticDto> {
+            let applied =
+                Self::apply_linear_equation_rule(&current, variable, rule, operand.as_deref());
+            if applied.outcome != MathematicalOutcomeKindDto::Proven {
+                return Err(applied
+                    .diagnostics
+                    .into_iter()
+                    .next()
+                    .unwrap_or(DiagnosticDto {
+                        code: "EquationStrategy.RuleFailed".to_owned(),
+                        message: format!("strategy could not apply {rule}"),
+                    }));
+            }
+            current = applied
+                .result_latex
+                .expect("proven rule application returns a result");
+            response.steps.push(
+                applied
+                    .step
+                    .expect("proven rule application returns a step"),
+            );
+            Ok(())
+        };
+        if let Err(diagnostic) = apply("algebra.linear-equation.simplify-both-sides", None) {
+            response.diagnostics.push(diagnostic);
+            return response;
+        }
+        if !right.coefficient.is_zero() {
+            let operand = socrates_math_algebra::LinearExpression {
+                variable: variable.to_owned(),
+                coefficient: right.coefficient.clone(),
+                constant: ExactRational::integer(0),
+            };
+            if let Err(diagnostic) = apply(
+                "algebra.equation.subtract-both-sides",
+                Some(LatexRenderer::linear_expression(&operand)),
+            ) {
+                response.diagnostics.push(diagnostic);
+                return response;
+            }
+        }
+        if !left.constant.is_zero() {
+            if let Err(diagnostic) = apply(
+                "algebra.equation.subtract-both-sides",
+                Some(LatexRenderer::exact_rational(&left.constant)),
+            ) {
+                response.diagnostics.push(diagnostic);
+                return response;
+            }
+        }
+        let coefficient = left.coefficient.sub(&right.coefficient);
+        if coefficient.is_zero() {
+            let solved = Self::solve_linear_equation(source, variable);
+            response.outcome = solved.outcome;
+            response.result_latex = solved.solution_set_latex;
+            response.diagnostics.extend(solved.diagnostics);
+            return response;
+        }
+        if coefficient != ExactRational::integer(1) {
+            if let Err(diagnostic) = apply(
+                "algebra.equation.divide-both-sides",
+                Some(LatexRenderer::exact_rational(&coefficient)),
+            ) {
+                response.diagnostics.push(diagnostic);
+                return response;
+            }
+        }
+        response.outcome = MathematicalOutcomeKindDto::Proven;
+        response.result_latex = Some(current);
+        response
+    }
+
     pub fn apply_linear_equation_rule(
         source: &str,
         variable: &str,
         rule: &str,
+        operand_source: Option<&str>,
     ) -> ApplyLinearEquationRuleResponseDto {
         let unknown = |message: String| ApplyLinearEquationRuleResponseDto {
             outcome: MathematicalOutcomeKindDto::Unknown,
@@ -53,42 +176,86 @@ impl MathEngine {
                 };
             }
         };
-        let result_latex = match rule {
-            "algebra.linear-equation.simplify-both-sides" => {
-                let left = match LinearNormalizer::normalize(&judgment.left, variable) {
-                    MathematicalOutcome::Proven(value) => value.value.normal_form,
-                    _ => {
-                        return unknown(
-                            "left side is outside the linear rational domain".to_owned(),
-                        );
-                    }
-                };
-                let right = match LinearNormalizer::normalize(&judgment.right, variable) {
-                    MathematicalOutcome::Proven(value) => value.value.normal_form,
-                    _ => {
-                        return unknown(
-                            "right side is outside the linear rational domain".to_owned(),
-                        );
-                    }
-                };
+        let normalize_side =
+            |term: &SemanticTerm, side: &str| match LinearNormalizer::normalize(term, variable) {
+                MathematicalOutcome::Proven(value) => Ok(value.value.normal_form),
+                _ => Err(unknown(format!(
+                    "{side} side is outside the linear rational domain"
+                ))),
+            };
+        let left = match normalize_side(&judgment.left, "left") {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+        let right = match normalize_side(&judgment.right, "right") {
+            Ok(value) => value,
+            Err(response) => return response,
+        };
+        let render_equation =
+            |left: &socrates_math_algebra::LinearExpression,
+             right: &socrates_math_algebra::LinearExpression| {
                 format!(
                     "{} = {}",
-                    LatexRenderer::linear_expression(&left),
-                    LatexRenderer::linear_expression(&right)
+                    LatexRenderer::linear_expression(left),
+                    LatexRenderer::linear_expression(right)
+                )
+            };
+        let operand = || -> Result<socrates_math_algebra::LinearExpression, ApplyLinearEquationRuleResponseDto> {
+            let source = operand_source.ok_or_else(|| unknown(format!("rule {rule} requires an explicit operand")))?;
+            let term = parse_and_elaborate_expression(source, variable).map_err(|diagnostic| ApplyLinearEquationRuleResponseDto {
+                outcome: MathematicalOutcomeKindDto::Unknown,
+                relation: "rule.application".to_owned(), previous_latex: Some(source.to_owned()), result_latex: None, step: None, diagnostics: vec![diagnostic],
+            })?;
+            match LinearNormalizer::normalize(&term, variable) {
+                MathematicalOutcome::Proven(value) => Ok(value.value.normal_form),
+                _ => Err(unknown("operand is outside the linear rational domain".to_owned())),
+            }
+        };
+        let result_latex = match rule {
+            "algebra.linear-equation.simplify-both-sides" => render_equation(&left, &right),
+            "algebra.equation.add-both-sides" => {
+                let operand = match operand() {
+                    Ok(value) => value,
+                    Err(response) => return response,
+                };
+                render_equation(
+                    &left.add(&operand).expect("normalized variables match"),
+                    &right.add(&operand).expect("normalized variables match"),
                 )
             }
-            "algebra.linear-equation.solve" => {
-                match LinearEquationSolver::solve(&judgment, variable) {
-                    MathematicalOutcome::Proven(value) => {
-                        LatexRenderer::solution_set(variable, &value.value.solution_set)
-                    }
-                    _ => {
-                        return unknown(
-                            "equation is outside the complete linear rational solver domain"
-                                .to_owned(),
-                        );
-                    }
+            "algebra.equation.subtract-both-sides" => {
+                let operand = match operand() {
+                    Ok(value) => value,
+                    Err(response) => return response,
+                };
+                render_equation(
+                    &left.sub(&operand).expect("normalized variables match"),
+                    &right.sub(&operand).expect("normalized variables match"),
+                )
+            }
+            "algebra.equation.multiply-both-sides" | "algebra.equation.divide-both-sides" => {
+                let operand = match operand() {
+                    Ok(value) => value,
+                    Err(response) => return response,
+                };
+                let Some(scalar) = operand.as_constant() else {
+                    return unknown(
+                        "multiplication and division require a constant exact-rational operand"
+                            .to_owned(),
+                    );
+                };
+                if scalar.is_zero() {
+                    return unknown("multiplying or dividing both sides by zero does not preserve equation equivalence".to_owned());
                 }
+                let factor = if rule.ends_with("divide-both-sides") {
+                    match ExactRational::integer(1).div(scalar) {
+                        Ok(value) => value,
+                        Err(_) => return unknown("division operand must be nonzero".to_owned()),
+                    }
+                } else {
+                    scalar.clone()
+                };
+                render_equation(&left.scale(&factor), &right.scale(&factor))
             }
             _ => return unknown(format!("unknown linear equation rule: {rule}")),
         };
@@ -99,7 +266,12 @@ impl MathEngine {
             result_latex: Some(result_latex.clone()),
             step: Some(MathDerivationStepDto {
                 rule: rule.to_owned(),
-                reason: "verified linear-equation transformation".to_owned(),
+                reason: operand_source.map_or_else(
+                    || "verified linear-equation transformation".to_owned(),
+                    |operand| {
+                        format!("verified linear-equation transformation with operand {operand}")
+                    },
+                ),
                 target: Some(RuleTargetDto::Whole),
                 input_latex: Some(source.to_owned()),
                 output_latex: Some(result_latex),
@@ -3522,16 +3694,47 @@ mod tests {
             "3(x - 2) + 4 = 2x + 9",
             "x",
             "algebra.linear-equation.simplify-both-sides",
+            None,
         );
         assert_eq!(simplified.outcome, MathematicalOutcomeKindDto::Proven);
         assert_eq!(simplified.result_latex.as_deref(), Some("3x - 2 = 2x + 9"));
 
-        let solved = MathEngine::apply_linear_equation_rule(
+        let subtracted = MathEngine::apply_linear_equation_rule(
             simplified.result_latex.as_deref().unwrap(),
+            "x",
+            "algebra.equation.subtract-both-sides",
+            Some("2x"),
+        );
+        assert_eq!(subtracted.result_latex.as_deref(), Some("x - 2 = 9"));
+
+        let added = MathEngine::apply_linear_equation_rule(
+            subtracted.result_latex.as_deref().unwrap(),
+            "x",
+            "algebra.equation.add-both-sides",
+            Some("2"),
+        );
+        assert_eq!(added.outcome, MathematicalOutcomeKindDto::Proven);
+        assert_eq!(added.result_latex.as_deref(), Some("x = 11"));
+
+        let rejected = MathEngine::apply_linear_equation_rule(
+            "2x = 4",
+            "x",
+            "algebra.equation.divide-both-sides",
+            Some("0"),
+        );
+        assert_eq!(rejected.outcome, MathematicalOutcomeKindDto::Unknown);
+
+        let strategy = MathEngine::run_linear_equation_strategy(
+            "3(x - 2) + 4 = 2x + 9",
             "x",
             "algebra.linear-equation.solve",
         );
-        assert_eq!(solved.outcome, MathematicalOutcomeKindDto::Proven);
-        assert_eq!(solved.result_latex.as_deref(), Some("x = 11"));
+        assert_eq!(strategy.outcome, MathematicalOutcomeKindDto::Proven);
+        assert_eq!(strategy.result_latex.as_deref(), Some("x = 11"));
+        assert_eq!(strategy.steps.len(), 3);
+        assert_eq!(
+            strategy.steps[1].rule,
+            "algebra.equation.subtract-both-sides"
+        );
     }
 }

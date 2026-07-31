@@ -139,9 +139,17 @@ export interface ValidatePolynomialDerivationResult {
   reachesGoal: boolean | null;
   diagnostics: MathDiagnostic[];
 }
-export type LinearEquationRule = "algebra.linear-equation.simplify-both-sides" | "algebra.linear-equation.solve";
-export interface ApplyLinearEquationRuleRequest { equation: string; variable: string; rule: LinearEquationRule }
+export type LinearEquationRule =
+  | "algebra.linear-equation.simplify-both-sides"
+  | "algebra.equation.add-both-sides"
+  | "algebra.equation.subtract-both-sides"
+  | "algebra.equation.multiply-both-sides"
+  | "algebra.equation.divide-both-sides";
+export interface ApplyLinearEquationRuleRequest { equation: string; variable: string; rule: LinearEquationRule; operand: string | null }
 export interface ApplyLinearEquationRuleResult { outcome: MathematicalOutcome; relation: "rule.application"; previousLatex: string | null; resultLatex: string | null; step: MathDerivationStep | null; diagnostics: MathDiagnostic[] }
+export type LinearEquationStrategy = "algebra.linear-equation.solve";
+export interface RunLinearEquationStrategyRequest { equation: string; variable: string; strategy: LinearEquationStrategy }
+export interface RunLinearEquationStrategyResult { outcome: MathematicalOutcome; relation: "strategy.linear-equation"; strategy: LinearEquationStrategy; initialLatex: string; resultLatex: string | null; steps: MathDerivationStep[]; diagnostics: MathDiagnostic[] }
 
 export interface NormalizeSetExpressionRequest {
   expression: string;
@@ -349,6 +357,7 @@ export interface ApplyMathExpressionRuleResult {
 
 export interface MathEngine {
   applyLinearEquationRule(request: ApplyLinearEquationRuleRequest): ApplyLinearEquationRuleResult;
+  runLinearEquationStrategy(request: RunLinearEquationStrategyRequest): RunLinearEquationStrategyResult;
   validatePolynomialDerivation(
     request: ValidatePolynomialDerivationRequest,
   ): ValidatePolynomialDerivationResult;

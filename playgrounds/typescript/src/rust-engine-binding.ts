@@ -19,8 +19,8 @@ function runApi(args: readonly string[]): string {
 }
 
 export class LocalRustMathEngineBinding {
-  applyLinearEquationRule(source: string, variable: string, rule: string): string {
-    return runApi(["apply-equation-rule", source, variable, rule]);
+  applyLinearEquationRule(source: string, variable: string, rule: string, operand?: string | null): string {
+    return runApi(["apply-equation-rule", source, variable, rule, operand ?? ""]);
   }
 
   solveLinearEquation(source: string, variable: string): string {

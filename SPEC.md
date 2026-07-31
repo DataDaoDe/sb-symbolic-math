@@ -1503,13 +1503,23 @@ MUST support:
 Powers MAY be parsed if needed by surrounding infrastructure, but solving
 nonlinear equations is outside this slice.
 
-The first public whole-equation transformation vocabulary is intentionally
-bounded to `algebra.linear-equation.simplify-both-sides` and
-`algebra.linear-equation.solve`. Both operations MUST parse and elaborate the
-input equation, return a stable derivation step, and fail honestly outside the
-supported linear rational domain. Later granular balance operations MUST carry
-explicit operands and semantic targets; they MUST NOT be implemented as string
-rewrites in application code.
+The first public whole-equation rule vocabulary is intentionally bounded to
+simplification and add, subtract, multiply, or divide on both sides. Balance
+rules carry explicit operands and semantic targets, return a stable derivation
+step, and fail honestly outside the supported linear rational domain. They
+MUST NOT be implemented as string rewrites in application code.
+
+Architectural correction: manual rules and automated strategies are separate
+public concepts. A rule is one small, explicit transformation selected with
+its operands, parameters, and semantic target. A strategy is a
+problem-type-specific algorithm that selects and schedules verified rules until
+it reaches a goal or reports that it cannot continue. Solvers establish the
+mathematical result and completeness; strategies construct an inspectable path
+to that result. Every strategy-produced step MUST be an independently
+replayable application of the same rule API available to manual callers.
+Applications MUST be able to use either surface: granular learner/developer
+control or automated problem solving. `algebra.linear-equation.solve` is a
+strategy identifier and MUST NOT be accepted as a misleading atomic rule.
 
 ### 35.2 Initial theories
 

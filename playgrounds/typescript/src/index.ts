@@ -21,11 +21,11 @@ function runCommand(args: string[]): void {
 
   switch (command) {
     case "apply-equation-rule": {
-      const [equation, rule = "algebra.linear-equation.simplify-both-sides", variable = "x"] = values;
+      const [equation, rule = "algebra.linear-equation.simplify-both-sides", operand = "", variable = "x"] = values;
       requireArgs(command, values, 1);
       print(
         `apply ${rule}: ${equation}`,
-        engine.applyLinearEquationRule({ equation, variable, rule: rule as "algebra.linear-equation.simplify-both-sides" | "algebra.linear-equation.solve" }),
+        engine.applyLinearEquationRule({ equation, variable, rule: rule as import("@socrates/math").LinearEquationRule, operand: operand || null }),
       );
       return;
     }
@@ -258,7 +258,7 @@ Usage:
   pnpm --filter @socrates/playground run try -- normalize <expression> [variable]
   pnpm --filter @socrates/playground run try -- compare-expressions <left> <right> [variable]
   pnpm --filter @socrates/playground run try -- compare-equations <left> <right> [variable]
-  pnpm --filter @socrates/playground run try -- apply-equation-rule <equation> [rule-id] [variable]
+  pnpm --filter @socrates/playground run try -- apply-equation-rule <equation> [rule-id] [operand] [variable]
   pnpm --filter @socrates/playground run try -- solve-linear <equation> [variable]
   pnpm --filter @socrates/playground run try -- compare-numeric <submitted> <expected> [tolerance]
   pnpm --filter @socrates/playground run try -- differentiate <expression> [variable]
@@ -268,7 +268,7 @@ Examples:
   pnpm --filter @socrates/playground run try -- normalize "3(x - 2) + 4"
   pnpm --filter @socrates/playground run try -- compare-expressions "2(x + 1)" "2x + 2"
   pnpm --filter @socrates/playground run try -- compare-equations "x + 1 = 3" "2x = 4"
-  pnpm --filter @socrates/playground run try -- apply-equation-rule "3(x - 2) + 4 = 2x + 9" algebra.linear-equation.simplify-both-sides
+  pnpm --filter @socrates/playground run try -- apply-equation-rule "3x - 2 = 2x + 9" algebra.equation.subtract-both-sides "2x"
   pnpm --filter @socrates/playground run try -- compare-numeric "\\frac{333}{1000}" "\\frac{1}{3}" 0.001
   pnpm --filter @socrates/playground run try -- differentiate "x^3 + 2x"
   pnpm --filter @socrates/playground run try -- integrate "x^3"`);
