@@ -10,21 +10,257 @@ use socrates_math_protocol::{
     CompareEquationsResponseDto, CompareMathExpressionsResponseDto,
     CompareNumericAnswerResponseDto, CompareSetExpressionsResponseDto, DiagnosticDto,
     EvaluateFiniteRelationPredicateResponseDto, EvaluateSetCardinalityResponseDto,
-    EvaluateSetStatementResponseDto, ExactValueDto, ListApplicableRulesResponseDto,
+    EvaluateSetStatementResponseDto, ExactValueDto, ListApplicableRulesResponseDto, MathContextDto,
     MathDerivationStepDto, MathExpressionDto, MathematicalOutcomeKindDto,
-    NormalizeMathExpressionResponseDto, NormalizeSetExpressionResponseDto,
-    RuleApplicabilityStatusDto, RuleTargetDto, RunLinearEquationStrategyResponseDto, SetBindingDto,
-    SetExpressionDto, SetStatementDto, SolutionSetDto, SolveLinearEquationResponseDto,
-    TransformMathExpressionResponseDto,
+    NormalizeMathExpressionResponseDto, NormalizeSetExpressionResponseDto, ProtocolCapabilityDto,
+    ProtocolManifestDto, RuleApplicabilityStatusDto, RuleTargetDto,
+    RunLinearEquationStrategyResponseDto, SetBindingDto, SetExpressionDto, SetStatementDto,
+    SolutionSetDto, SolveLinearEquationResponseDto, TransformMathExpressionResponseDto,
+    TypedVariableDto, ValidateMathExpressionResponseDto, ValidatedMathExpressionDto,
 };
 use socrates_math_render::LatexRenderer;
 use socrates_math_solve::LinearEquationSolver;
 use socrates_math_syntax::{DiagnosticCode, ParseOutcome, Parser};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod rates;
+mod real_domain;
+mod real_function;
+mod unit;
+
 pub struct MathEngine;
 
 impl MathEngine {
+    pub fn protocol_manifest() -> ProtocolManifestDto {
+        ProtocolManifestDto {
+            schema: "socrates.math.protocol-manifest".to_owned(),
+            version: 1,
+            capabilities: vec![
+                ProtocolCapabilityDto {
+                    id: "protocol.manifest".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "expression.validate.polynomial-rational".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "expression.normalize.polynomial-rational".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "expression.compare.polynomial-identity".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "domain.real.normalize".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "domain.real.intersect".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "domain.real.compare".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "domain.real.membership".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "function.real-explicit.validate".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "function.real-explicit.compare".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "function.real-explicit.evaluate-exact".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "function.real-explicit.evaluate-table".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "function.real-explicit.average-rate".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "function.polynomial.difference-quotient".to_owned(),
+                    version: 1,
+                },
+            ],
+        }
+    }
+
+    pub fn normalize_real_domain(
+        domain: &socrates_math_protocol::RealDomainDto,
+    ) -> socrates_math_protocol::NormalizeRealDomainResponseDto {
+        real_domain::normalize_response(domain)
+    }
+
+    pub fn intersect_real_domains(
+        left: &socrates_math_protocol::RealDomainDto,
+        right: &socrates_math_protocol::RealDomainDto,
+    ) -> socrates_math_protocol::NormalizeRealDomainResponseDto {
+        real_domain::intersection_response(left, right)
+    }
+
+    pub fn compare_real_domains(
+        left: &socrates_math_protocol::RealDomainDto,
+        right: &socrates_math_protocol::RealDomainDto,
+    ) -> socrates_math_protocol::CompareRealDomainsResponseDto {
+        real_domain::comparison_response(left, right)
+    }
+
+    pub fn real_domain_contains(
+        domain: &socrates_math_protocol::RealDomainDto,
+        value: &ExactValueDto,
+    ) -> socrates_math_protocol::RealDomainMembershipResponseDto {
+        real_domain::membership_response(domain, value)
+    }
+
+    pub fn validate_real_function(
+        source: &socrates_math_protocol::RealFunctionSourceDto,
+    ) -> socrates_math_protocol::ValidateRealFunctionResponseDto {
+        real_function::validate_response(source)
+    }
+
+    pub fn compare_real_functions(
+        left: &socrates_math_protocol::RealFunctionSourceDto,
+        right: &socrates_math_protocol::RealFunctionSourceDto,
+        relation: &str,
+    ) -> socrates_math_protocol::CompareRealFunctionsResponseDto {
+        real_function::compare_response(left, right, relation)
+    }
+
+    pub fn evaluate_real_function(
+        source: &socrates_math_protocol::RealFunctionSourceDto,
+        input: &socrates_math_protocol::ExactQuantityDto,
+    ) -> socrates_math_protocol::EvaluateRealFunctionResponseDto {
+        real_function::evaluate_response(source, input)
+    }
+
+    pub fn evaluate_real_function_table(
+        source: &socrates_math_protocol::RealFunctionSourceDto,
+        inputs: &[socrates_math_protocol::ExactQuantityDto],
+    ) -> socrates_math_protocol::EvaluateRealFunctionTableResponseDto {
+        real_function::evaluate_table_response(source, inputs)
+    }
+
+    pub fn average_rate(
+        source: &socrates_math_protocol::RealFunctionSourceDto,
+        left: &socrates_math_protocol::ExactQuantityDto,
+        right: &socrates_math_protocol::ExactQuantityDto,
+    ) -> socrates_math_protocol::AverageRateResponseDto {
+        rates::average_rate_response(source, left, right)
+    }
+
+    pub fn derive_difference_quotient(
+        source: &socrates_math_protocol::RealFunctionSourceDto,
+        increment_variable: &str,
+    ) -> socrates_math_protocol::DifferenceQuotientResponseDto {
+        rates::difference_quotient_response(source, increment_variable)
+    }
+
+    pub fn apply_difference_quotient_rule(
+        source: &socrates_math_protocol::RealFunctionSourceDto,
+        increment_variable: &str,
+        rule: &str,
+    ) -> socrates_math_protocol::ApplyDifferenceQuotientRuleResponseDto {
+        rates::apply_difference_quotient_rule_response(source, increment_variable, rule)
+    }
+
+    pub fn validate_math_expression(
+        source: &str,
+        _input_format: &str,
+        variable: &str,
+    ) -> ValidateMathExpressionResponseDto {
+        let term = match parse_and_elaborate_expression(source, variable) {
+            Ok(term) => term,
+            Err(diagnostic) => {
+                return ValidateMathExpressionResponseDto {
+                    outcome: MathematicalOutcomeKindDto::Unknown,
+                    expression: None,
+                    diagnostics: vec![diagnostic],
+                };
+            }
+        };
+        let normalized = match PolynomialNormalizer::normalize(&term, variable) {
+            MathematicalOutcome::Proven(result) => result.value.normal_form,
+            MathematicalOutcome::Unknown(unknown) => {
+                return ValidateMathExpressionResponseDto {
+                    outcome: MathematicalOutcomeKindDto::Unknown,
+                    expression: None,
+                    diagnostics: vec![DiagnosticDto {
+                        code: unknown_reason_code(&unknown.reason),
+                        message: "expression is outside the supported rational-polynomial theory"
+                            .to_owned(),
+                    }],
+                };
+            }
+            MathematicalOutcome::Undefined(undefined) => {
+                return ValidateMathExpressionResponseDto {
+                    outcome: MathematicalOutcomeKindDto::Undefined,
+                    expression: None,
+                    diagnostics: vec![DiagnosticDto {
+                        code: "Undefined".to_owned(),
+                        message: undefined.reason,
+                    }],
+                };
+            }
+            MathematicalOutcome::Disproven(_) | MathematicalOutcome::Conditional(_) => {
+                return ValidateMathExpressionResponseDto {
+                    outcome: MathematicalOutcomeKindDto::Unknown,
+                    expression: None,
+                    diagnostics: vec![DiagnosticDto {
+                        code: "UnsupportedOutcome".to_owned(),
+                        message: "validator returned an unsupported outcome".to_owned(),
+                    }],
+                };
+            }
+        };
+        let type_id = "core.rational.rational".to_owned();
+        let typed_variable = TypedVariableDto {
+            symbol: variable.to_owned(),
+            type_id: type_id.clone(),
+        };
+        let canonical_latex = LatexRenderer::polynomial_expression(&normalized);
+        let free_variables = if normalized.coefficients.keys().any(|degree| *degree > 0) {
+            vec![typed_variable.clone()]
+        } else {
+            Vec::new()
+        };
+        let fingerprint_payload = format!(
+            "schema=1|theory=algebra.polynomial.rational|variable={variable}|type={type_id}|canonical={canonical_latex}"
+        );
+        ValidateMathExpressionResponseDto {
+            outcome: MathematicalOutcomeKindDto::Proven,
+            expression: Some(ValidatedMathExpressionDto {
+                schema: "socrates.math.validated-expression".to_owned(),
+                version: 1,
+                source_latex: source.to_owned(),
+                canonical_latex,
+                theory: "algebra.polynomial.rational".to_owned(),
+                context: MathContextDto {
+                    theory_ids: vec!["algebra.polynomial.rational".to_owned()],
+                    variables: vec![typed_variable],
+                    assumptions: Vec::new(),
+                },
+                value_type: type_id,
+                free_variables,
+                semantic_fingerprint: format!(
+                    "fnv1a64:{:016x}",
+                    stable_fnv1a64(fingerprint_payload.as_bytes())
+                ),
+            }),
+            diagnostics: Vec::new(),
+        }
+    }
+
     pub fn run_linear_equation_strategy(
         source: &str,
         variable: &str,
@@ -3652,6 +3888,15 @@ fn unknown_reason_code(reason: &UnknownReason) -> String {
     format!("Unknown.{reason:?}")
 }
 
+fn stable_fnv1a64(bytes: &[u8]) -> u64 {
+    let mut hash = 0xcbf29ce484222325_u64;
+    for byte in bytes {
+        hash ^= u64::from(*byte);
+        hash = hash.wrapping_mul(0x100000001b3);
+    }
+    hash
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -3670,6 +3915,34 @@ mod tests {
                 }
             })
         );
+    }
+
+    #[test]
+    fn publishes_versioned_protocol_capabilities() {
+        let manifest = MathEngine::protocol_manifest();
+        assert_eq!(manifest.version, 1);
+        assert!(manifest.capabilities.iter().any(|capability| capability.id
+            == "expression.validate.polynomial-rational"
+            && capability.version == 1));
+    }
+
+    #[test]
+    fn validates_equivalent_polynomials_with_the_same_semantic_fingerprint() {
+        let factored = MathEngine::validate_math_expression("2(x + 1)", "latex", "x");
+        let expanded = MathEngine::validate_math_expression("2x + 2", "latex", "x");
+        let factored = factored.expression.expect("factored expression validates");
+        let expanded = expanded.expression.expect("expanded expression validates");
+        assert_eq!(factored.canonical_latex, expanded.canonical_latex);
+        assert_eq!(factored.semantic_fingerprint, expanded.semantic_fingerprint);
+        assert_eq!(factored.free_variables[0].symbol, "x");
+    }
+
+    #[test]
+    fn refuses_to_issue_an_envelope_outside_the_declared_theory() {
+        let result = MathEngine::validate_math_expression("x^{-1}", "latex", "x");
+        assert_eq!(result.outcome, MathematicalOutcomeKindDto::Unknown);
+        assert_eq!(result.expression, None);
+        assert!(!result.diagnostics.is_empty());
     }
 
     #[test]

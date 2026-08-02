@@ -1,5 +1,7 @@
 use socrates_math_app::MathEngine;
-use socrates_math_protocol::SetBindingDto;
+use socrates_math_protocol::{
+    ExactQuantityDto, ExactValueDto, RealDomainDto, RealFunctionSourceDto, SetBindingDto,
+};
 use wasm_bindgen::prelude::*;
 
 #[wasm_bindgen]
@@ -10,6 +12,147 @@ impl WasmMathEngine {
     #[wasm_bindgen(constructor)]
     pub fn new() -> Self {
         Self
+    }
+
+    #[wasm_bindgen(js_name = protocolManifest)]
+    pub fn protocol_manifest(&self) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::protocol_manifest())
+            .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = validateMathExpression)]
+    pub fn validate_math_expression(
+        &self,
+        source: &str,
+        input_format: &str,
+        variable: &str,
+    ) -> Result<String, JsValue> {
+        serde_json::to_string(&MathEngine::validate_math_expression(
+            source,
+            input_format,
+            variable,
+        ))
+        .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = normalizeRealDomain)]
+    pub fn normalize_real_domain(&self, domain_json: &str) -> Result<String, JsValue> {
+        let domain = parse_json::<RealDomainDto>(domain_json)?;
+        serialize(&MathEngine::normalize_real_domain(&domain))
+    }
+
+    #[wasm_bindgen(js_name = intersectRealDomains)]
+    pub fn intersect_real_domains(
+        &self,
+        left_json: &str,
+        right_json: &str,
+    ) -> Result<String, JsValue> {
+        let left = parse_json::<RealDomainDto>(left_json)?;
+        let right = parse_json::<RealDomainDto>(right_json)?;
+        serialize(&MathEngine::intersect_real_domains(&left, &right))
+    }
+
+    #[wasm_bindgen(js_name = compareRealDomains)]
+    pub fn compare_real_domains(
+        &self,
+        left_json: &str,
+        right_json: &str,
+    ) -> Result<String, JsValue> {
+        let left = parse_json::<RealDomainDto>(left_json)?;
+        let right = parse_json::<RealDomainDto>(right_json)?;
+        serialize(&MathEngine::compare_real_domains(&left, &right))
+    }
+
+    #[wasm_bindgen(js_name = realDomainContains)]
+    pub fn real_domain_contains(
+        &self,
+        domain_json: &str,
+        value_json: &str,
+    ) -> Result<String, JsValue> {
+        let domain = parse_json::<RealDomainDto>(domain_json)?;
+        let value = parse_json::<ExactValueDto>(value_json)?;
+        serialize(&MathEngine::real_domain_contains(&domain, &value))
+    }
+
+    #[wasm_bindgen(js_name = validateRealFunction)]
+    pub fn validate_real_function(&self, source_json: &str) -> Result<String, JsValue> {
+        let source = parse_json::<RealFunctionSourceDto>(source_json)?;
+        serialize(&MathEngine::validate_real_function(&source))
+    }
+
+    #[wasm_bindgen(js_name = compareRealFunctions)]
+    pub fn compare_real_functions(
+        &self,
+        left_json: &str,
+        right_json: &str,
+        relation: &str,
+    ) -> Result<String, JsValue> {
+        let left = parse_json::<RealFunctionSourceDto>(left_json)?;
+        let right = parse_json::<RealFunctionSourceDto>(right_json)?;
+        serialize(&MathEngine::compare_real_functions(&left, &right, relation))
+    }
+
+    #[wasm_bindgen(js_name = evaluateRealFunction)]
+    pub fn evaluate_real_function(
+        &self,
+        source_json: &str,
+        input_json: &str,
+    ) -> Result<String, JsValue> {
+        let source = parse_json::<RealFunctionSourceDto>(source_json)?;
+        let input = parse_json::<ExactQuantityDto>(input_json)?;
+        serialize(&MathEngine::evaluate_real_function(&source, &input))
+    }
+
+    #[wasm_bindgen(js_name = evaluateRealFunctionTable)]
+    pub fn evaluate_real_function_table(
+        &self,
+        source_json: &str,
+        inputs_json: &str,
+    ) -> Result<String, JsValue> {
+        let source = parse_json::<RealFunctionSourceDto>(source_json)?;
+        let inputs = parse_json::<Vec<ExactQuantityDto>>(inputs_json)?;
+        serialize(&MathEngine::evaluate_real_function_table(&source, &inputs))
+    }
+
+    #[wasm_bindgen(js_name = averageRate)]
+    pub fn average_rate(
+        &self,
+        source_json: &str,
+        left_json: &str,
+        right_json: &str,
+    ) -> Result<String, JsValue> {
+        let source = parse_json::<RealFunctionSourceDto>(source_json)?;
+        let left = parse_json::<ExactQuantityDto>(left_json)?;
+        let right = parse_json::<ExactQuantityDto>(right_json)?;
+        serialize(&MathEngine::average_rate(&source, &left, &right))
+    }
+
+    #[wasm_bindgen(js_name = deriveDifferenceQuotient)]
+    pub fn derive_difference_quotient(
+        &self,
+        source_json: &str,
+        increment_variable: &str,
+    ) -> Result<String, JsValue> {
+        let source = parse_json::<RealFunctionSourceDto>(source_json)?;
+        serialize(&MathEngine::derive_difference_quotient(
+            &source,
+            increment_variable,
+        ))
+    }
+
+    #[wasm_bindgen(js_name = applyDifferenceQuotientRule)]
+    pub fn apply_difference_quotient_rule(
+        &self,
+        source_json: &str,
+        increment_variable: &str,
+        rule: &str,
+    ) -> Result<String, JsValue> {
+        let source = parse_json::<RealFunctionSourceDto>(source_json)?;
+        serialize(&MathEngine::apply_difference_quotient_rule(
+            &source,
+            increment_variable,
+            rule,
+        ))
     }
 
     #[wasm_bindgen(js_name = solveLinearEquation)]
@@ -356,6 +499,14 @@ fn parse_optional_rule_target(
 fn parse_set_bindings(bindings_json: &str) -> Result<Vec<SetBindingDto>, JsValue> {
     serde_json::from_str(bindings_json)
         .map_err(|error| JsValue::from_str(&format!("invalid set bindings JSON: {error}")))
+}
+
+fn parse_json<T: serde::de::DeserializeOwned>(json: &str) -> Result<T, JsValue> {
+    serde_json::from_str(json).map_err(|error| JsValue::from_str(&error.to_string()))
+}
+
+fn serialize<T: serde::Serialize>(value: &T) -> Result<String, JsValue> {
+    serde_json::to_string(value).map_err(|error| JsValue::from_str(&error.to_string()))
 }
 
 impl Default for WasmMathEngine {

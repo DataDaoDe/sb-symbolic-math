@@ -1345,6 +1345,82 @@ The public API MUST expose handwritten facade objects and versioned DTOs.
 
 Generated Wasm classes MUST remain private.
 
+The public API MUST expose a versioned capability manifest so a consumer can
+discover supported semantic operations without probing them by failure. A
+capability identifier and its version form one compatibility boundary.
+
+A successfully validated expression MUST be returned as a semantic envelope,
+not as an untyped universal syntax tree. The version-1 envelope records the
+authored source, canonical rendering, governing theory, typed context, result
+type, free variables, and a deterministic semantic fingerprint. An expression
+outside the declared theory MUST return an ordinary non-success mathematical
+outcome and MUST NOT receive a validated envelope.
+
+The semantic fingerprint identifies an expression within its declared theory
+and context. It is suitable for provenance and cache keys; it is not a proof of
+equality and callers MUST NOT treat it as one.
+
+### 31.1 Version 1 real domains
+
+Symbolic Math MUST own normalization, intersection, membership, and equality
+for versioned real-domain DTOs. Version 1 supports empty and all-real sets,
+exact rational points, intervals, rays, finite unions, and finite exact-point
+exclusions. Normalized domains MUST use exact values and canonical ordered,
+disjoint components. Touching components merge exactly when their endpoint
+inclusion makes their union connected.
+
+Every real domain MUST record whether its provenance is declared, natural,
+contextual, or restricted. Normalization preserves provenance; an intersection
+produces restricted provenance. Transforming a formula MUST NOT enlarge its
+domain or erase an excluded point.
+
+Unsupported set-builder claims MUST return `unknown` with diagnostics rather
+than being inferred by an application. Invalid schema versions and invalid
+exact values MUST likewise receive explicit diagnostics.
+
+### 31.2 Version 1 explicit real functions
+
+The public protocol MUST distinguish an authored real-function source from a
+validated real-function DTO. Version 1 accepts one explicitly bound real input,
+one scalar real output, and an explicit polynomial or supported rational
+formula with exact rational coefficients. Division in a function formula MUST
+be represented semantically as division, not flattened into a numeric literal
+or application-owned string convention.
+
+Validation MUST return the validated expression, natural domain, optional
+normalized declared domain and codomain, effective domain, typed input/output,
+and deterministic function fingerprint. The effective domain is the exact
+intersection of natural and declared domains. Parameters, assumptions, or
+denominator root sets outside the declared complete theory MUST return
+`unknown`; they MUST NOT be approximated or inferred by an application.
+
+Function equality MUST include the effective domain. Formula equality on the
+effective-domain intersection, restriction, and extension MUST be separate
+relations with explicit conditions and completeness. Alpha-renaming an
+explicitly bound input does not change meaning, while an undeclared identifier
+MUST be rejected. Cross-multiplication may prove rational formula identity, but
+MUST NOT erase zeros of the original denominator from the natural domain.
+
+### 31.3 Exact function evaluation and tables
+
+Evaluation of a supported version-1 real function at an exact rational input
+MUST remain exact through every protocol boundary. The result MUST distinguish
+`proven` with an exact quantity, `undefined` at an input outside the effective
+domain, and `unknown` when validation, units, or the mathematical theory are
+unsupported. An excluded point MUST be checked before evaluating a simplified
+formula.
+
+A table request is an ordered presentation request, not a mathematical set.
+The engine MUST preserve the authored order and duplicate inputs. Each row MUST
+carry its own mathematical outcome and diagnostics so one undefined input does
+not erase defined neighboring rows.
+
+Version-1 units MUST be normalized as multiplicative exact quantities. Base
+dimensions and rational exponents are canonicalized, scale conversion is exact,
+and compatible input units are converted before domain membership and formula
+evaluation. Missing, unexpected, incompatible, affine, or otherwise unsupported
+units MUST produce explicit diagnostics; applications MUST NOT convert them.
+
 Illustrative API:
 
 ```ts
@@ -1829,3 +1905,32 @@ A mathematical feature is complete only when:
 8. learner-facing presentation is derived from verified data;
 9. resource limits and failure modes are tested;
 10. the public API remains independent of implementation-specific bindings.
+
+## 45. Exact Average Rate and Polynomial Difference Quotients
+
+The version-1 function API MUST compute average rate from exact endpoint
+quantities without converting through floating point. Equal converted
+endpoints MUST return `undefined`; this operation MUST NOT silently request or
+approximate a limit.
+
+When input and output units are declared, the result unit MUST be the exact
+multiplicative quotient `output-unit/input-unit`. Missing, unexpected, or
+incompatible units MUST follow the function-evaluation unit policy.
+
+The bounded difference-quotient theory is complete for exact-rational
+polynomial functions of degree at most 32. It MUST:
+
+- construct `(f(x+h)-f(x))/h` with an explicit `h != 0` condition;
+- expand the increment substitution exactly;
+- factor the common increment;
+- cancel it only under the retained nonzero condition;
+- return the normalized exact polynomial quotient and composed result unit;
+- expose each transformation under a stable public rule identifier; and
+- make automated derivation steps replayable through the same public manual
+  rule operation.
+
+Substitution of `h = 0` into the constructed quotient is undefined. Algebraic
+simplification MUST NOT erase that fact or turn the conditional result into an
+unconditional identity. Rational-function difference quotients and
+polynomials beyond the stated bound MUST return `unknown`, never a guessed
+normal form.

@@ -1764,6 +1764,103 @@ Feature: Reject incompatible serialized mathematics
 ```gherkin
 Feature: Keep generated Wasm types out of public TypeScript
 
+  Scenario: Discover versioned engine capabilities
+    Given a consumer loads the public mathematics facade
+    When it requests the protocol manifest
+    Then it receives stable capability identifiers with explicit versions
+
+  Scenario: Validate an expression into a semantic envelope
+    Given two rational-polynomial sources have the same canonical meaning and context
+    When each source is validated
+    Then each result records its source, theory, typed context, canonical form, and free variables
+    And both results have the same deterministic semantic fingerprint
+
+  Scenario: Refuse an envelope outside the declared theory
+    Given an expression is outside the rational-polynomial capability
+    When it is validated
+    Then the result is unknown or undefined with diagnostics
+    And no validated semantic envelope is returned
+
+  Scenario: Normalize equivalent real-domain unions
+    Given two finite interval unions describe the same real set
+    When the engine normalizes and compares them
+    Then it proves them equal using ordered disjoint exact components
+
+  Scenario: Preserve an excluded point
+    Given a natural real domain excludes an exact rational point
+    When its formula is later simplified
+    Then normalization still excludes that point from membership
+
+  Scenario: Make an empty intersection explicit
+    Given two supported real domains have no common point
+    When the engine intersects them
+    Then it returns the versioned empty real domain with restricted provenance
+
+  Scenario: Decline unsupported set-builder reasoning
+    Given a real-domain source uses an unsupported set-builder claim
+    When the engine validates it
+    Then the result is unknown with a stable diagnostic
+    And no application inference is substituted
+
+  Scenario: Distinguish a formula from a function
+    Given two explicit real functions have the same polynomial formula
+    And their effective domains differ
+    When the engine checks function equality
+    Then it proves that they are not the same function
+
+  Scenario: Retain a removable discontinuity
+    Given an authored function has formula "(x^2 - 1)/(x - 1)"
+    When the engine validates and algebraically compares it with "x + 1"
+    Then the original function's natural domain still excludes one
+    And the functions are not equal
+    But their formulas are equal on their effective-domain intersection
+
+  Scenario: Compare restrictions and extensions
+    Given two formula-equal real functions have nested effective domains
+    When the engine checks restriction and extension relations
+    Then it returns explicit proven results with completeness metadata
+
+  Scenario: Enforce explicit binding
+    Given a function source binds "x" but its definition also contains "y"
+    When the engine validates the source
+    Then the result is unknown with an undeclared-symbol diagnostic
+
+  Scenario: Treat alpha-renamed inputs by meaning
+    Given one function explicitly binds "x" and another explicitly binds "t"
+    And their formulas differ only by that bound name
+    When the engine compares them
+    Then the binding rename does not make the functions unequal
+
+  Scenario: Evaluate a rational function exactly
+    Given a supported rational function and an exact rational input
+    When the engine evaluates the function
+    Then the result remains an exact rational quantity through the public protocol
+
+  Scenario: Report an excluded input as undefined
+    Given a function's effective domain excludes an exact point
+    When the engine evaluates the function at that point
+    Then the result is undefined
+    And no numeric value is returned
+
+  Scenario: Preserve table order and duplicates
+    Given an ordered input list contains repeated exact values
+    When the engine evaluates a function table
+    Then every requested row remains in its authored position
+    And duplicate inputs are not deduplicated
+
+  Scenario: Convert compatible input units exactly
+    Given a function declares a multiplicative input unit
+    And an exact input uses a compatible scaled unit
+    When the function is evaluated
+    Then Symbolic Math converts the input with exact rational arithmetic
+    And the application performs no unit conversion
+
+  Scenario: Decline unsupported evaluation
+    Given a function requires denominator-domain reasoning outside the complete theory
+    When evaluation is requested
+    Then the result is unknown with a stable diagnostic
+    And no approximate value is substituted
+
   Scenario: Public operations return stable DTOs
     Given a browser application uses "@socrates/math"
     When it parses, elaborates, simplifies, solves, evaluates, compares,
@@ -2640,3 +2737,52 @@ A `@slice-1` feature is complete only when:
 10. learner-facing explanations are derived from verified mathematics;
 11. resource failures cannot become incorrect conclusions;
 12. generated WebAssembly types remain private.
+
+---
+
+@typed-functions @slice-5
+## Feature: Compute Exact Average Rates
+
+```gherkin
+Feature: Compute exact average rates
+
+  Scenario: Preserve exact values and units
+    Given a validated real function with exact-rational semantics
+    And two distinct valid exact input quantities
+    When I request its average rate
+    Then the output is computed exactly
+    And its unit is output-unit divided by input-unit
+
+  Scenario: Reject a zero-width interval
+    Given two endpoint quantities that convert to the same input value
+    When I request the average rate
+    Then the outcome is "Undefined"
+    And no limit is silently requested
+```
+
+@typed-functions @slice-5
+## Feature: Derive A Conditional Polynomial Difference Quotient
+
+```gherkin
+Feature: Derive a conditional polynomial difference quotient
+
+  Scenario: Preserve the nonzero-increment obligation
+    Given a supported exact-rational polynomial function
+    When I derive its difference quotient using increment "h"
+    Then the construction is "(f(x+h)-f(x))/h"
+    And the context contains "h != 0"
+    And the normalized result remains conditional on "h != 0"
+    And substituting "h = 0" into the constructed quotient is undefined
+
+  Scenario: Replay the automated derivation manually
+    Given an automated polynomial difference-quotient derivation
+    For every step in that derivation
+    When I apply its public rule identifier manually to the same function
+    Then the input, output, reason, and retained conditions match that step
+
+  Scenario: Decline an unsupported quotient theory
+    Given a rational function or a polynomial beyond the bounded theory
+    When I request a normalized difference quotient
+    Then the outcome is "Unknown"
+    And no unverified normal form is returned
+```

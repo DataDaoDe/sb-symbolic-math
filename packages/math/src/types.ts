@@ -2,6 +2,25 @@ export type ExactValue =
   | { kind: "integer"; value: string }
   | { kind: "rational"; numerator: string; denominator: string };
 
+export type RealDomainProvenance = "declared" | "natural" | "contextual" | "restricted";
+export type RealSet =
+  | { kind: "empty" }
+  | { kind: "allReal" }
+  | { kind: "point"; value: ExactValue }
+  | { kind: "interval"; lower: ExactValue; upper: ExactValue; lowerInclusive: boolean; upperInclusive: boolean }
+  | { kind: "ray"; direction: "below" | "above"; boundary: ExactValue; inclusive: boolean }
+  | { kind: "union"; members: RealSet[] }
+  | { kind: "exclude"; base: RealSet; points: ExactValue[] }
+  | { kind: "setBuilder"; source: string };
+export interface RealDomain { schema: "socrates.real-domain"; version: 1; set: RealSet; provenance: RealDomainProvenance }
+export interface NormalizeRealDomainRequest { domain: RealDomain }
+export interface NormalizeRealDomainResult { outcome: MathematicalOutcome; domain: RealDomain | null; diagnostics: MathDiagnostic[] }
+export interface IntersectRealDomainsRequest { left: RealDomain; right: RealDomain }
+export interface CompareRealDomainsRequest { left: RealDomain; right: RealDomain }
+export interface CompareRealDomainsResult { outcome: MathematicalOutcome; relation: "domain.real.equal"; equal: boolean | null; leftNormalized: RealDomain | null; rightNormalized: RealDomain | null; diagnostics: MathDiagnostic[] }
+export interface RealDomainContainsRequest { domain: RealDomain; value: ExactValue }
+export interface RealDomainMembershipResult { outcome: MathematicalOutcome; relation: "domain.real.membership"; contains: boolean | null; normalizedDomain: RealDomain | null; diagnostics: MathDiagnostic[] }
+
 export type SolutionSet =
   | { kind: "empty" }
   | { kind: "unique"; value: ExactValue }
@@ -55,6 +74,35 @@ export type MathExpressionInputFormat = "latex";
 export interface MathExpression {
   latex: string;
 }
+
+export interface ProtocolCapability { id: string; version: number }
+export interface ProtocolManifest { schema: "socrates.math.protocol-manifest"; version: number; capabilities: ProtocolCapability[] }
+export interface TypedVariable { symbol: string; typeId: string }
+export interface MathContext { theoryIds: string[]; variables: TypedVariable[]; assumptions: string[] }
+export interface ValidatedMathExpression { schema: "socrates.math.validated-expression"; version: number; sourceLatex: string; canonicalLatex: string; theory: string; context: MathContext; valueType: string; freeVariables: TypedVariable[]; semanticFingerprint: string }
+export interface ValidateMathExpressionRequest { expression: string; inputFormat: MathExpressionInputFormat; variable: string }
+export interface ValidateMathExpressionResult { outcome: MathematicalOutcome; expression: ValidatedMathExpression | null; diagnostics: MathDiagnostic[] }
+export type UnitBaseDimension = "length" | "mass" | "time" | "electric_current" | "temperature" | "amount" | "luminous_intensity" | "angle";
+export interface Unit { schema: "socrates.unit"; version: 1; dimensions: Array<{ base: UnitBaseDimension; exponent: ExactValue }>; scaleToCanonical: ExactValue; symbol: string }
+export interface ExactQuantity { value: ExactValue; unit: Unit | null }
+export interface RealFunctionSource { schema: "socrates.real-function"; version: 1; input: { variable: string; label?: string; unit?: Unit }; output?: { label?: string; unit?: Unit }; definition: { kind: "explicit"; expression: string; inputFormat: "latex" }; declaredDomain?: RealDomain; declaredCodomain?: RealDomain; parameters?: string[]; assumptions?: string[] }
+export interface RealFunction { schema: "socrates.real-function"; version: 1; input: TypedVariable; inputLabel: string | null; inputUnit: Unit | null; outputType: string; outputLabel: string | null; outputUnit: Unit | null; expression: ValidatedMathExpression; naturalDomain: RealDomain; declaredDomain: RealDomain | null; effectiveDomain: RealDomain; declaredCodomain: RealDomain | null; parameters: string[]; assumptions: string[]; semanticFingerprint: string }
+export interface ValidateRealFunctionRequest { source: RealFunctionSource }
+export interface ValidateRealFunctionResult { outcome: MathematicalOutcome; function: RealFunction | null; diagnostics: MathDiagnostic[] }
+export type RealFunctionRelation = "function.equal" | "function.formula_equal_on_intersection" | "function.restriction_of" | "function.extension_of";
+export interface CompareRealFunctionsRequest { left: RealFunctionSource; right: RealFunctionSource; relation: RealFunctionRelation }
+export interface CompareRealFunctionsResult { outcome: MathematicalOutcome; relation: RealFunctionRelation; holds: boolean | null; conditions: string[]; left: RealFunction | null; right: RealFunction | null; completeness: string; diagnostics: MathDiagnostic[] }
+export interface EvaluateRealFunctionRequest { source: RealFunctionSource; input: ExactQuantity }
+export interface EvaluateRealFunctionResult { outcome: MathematicalOutcome; value: ExactQuantity | null; function: RealFunction | null; completeness: string; diagnostics: MathDiagnostic[] }
+export interface EvaluateRealFunctionTableRequest { source: RealFunctionSource; inputs: readonly ExactQuantity[] }
+export interface RealFunctionTableRow { input: ExactQuantity; outcome: MathematicalOutcome; output: ExactQuantity | null; diagnostics: MathDiagnostic[] }
+export interface EvaluateRealFunctionTableResult { outcome: MathematicalOutcome; function: RealFunction | null; rows: RealFunctionTableRow[]; completeness: string; diagnostics: MathDiagnostic[] }
+export interface AverageRateRequest { source: RealFunctionSource; leftInput: ExactQuantity; rightInput: ExactQuantity }
+export interface AverageRateResult { outcome: MathematicalOutcome; relation: "function.average-rate"; value: ExactQuantity | null; leftInput: ExactQuantity; rightInput: ExactQuantity; function: RealFunction | null; completeness: string; diagnostics: MathDiagnostic[] }
+export interface DifferenceQuotientRequest { source: RealFunctionSource; incrementVariable: string }
+export interface DifferenceQuotientResult { outcome: MathematicalOutcome; relation: "function.difference-quotient"; incrementVariable: string; conditions: string[]; initial: MathExpression | null; result: MathExpression | null; resultUnit: Unit | null; applicableRules: string[]; steps: MathDerivationStep[]; completeness: string; diagnostics: MathDiagnostic[] }
+export interface ApplyDifferenceQuotientRuleRequest extends DifferenceQuotientRequest { rule: string }
+export interface ApplyDifferenceQuotientRuleResult { outcome: MathematicalOutcome; relation: "function.difference-quotient"; rule: string; conditions: string[]; previous: MathExpression | null; result: MathExpression | null; step: MathDerivationStep | null; diagnostics: MathDiagnostic[] }
 
 export type SetExpressionInputFormat = "latex";
 
@@ -356,6 +404,19 @@ export interface ApplyMathExpressionRuleResult {
 }
 
 export interface MathEngine {
+  validateRealFunction(request: ValidateRealFunctionRequest): ValidateRealFunctionResult;
+  compareRealFunctions(request: CompareRealFunctionsRequest): CompareRealFunctionsResult;
+  evaluateRealFunction(request: EvaluateRealFunctionRequest): EvaluateRealFunctionResult;
+  evaluateRealFunctionTable(request: EvaluateRealFunctionTableRequest): EvaluateRealFunctionTableResult;
+  averageRate(request: AverageRateRequest): AverageRateResult;
+  deriveDifferenceQuotient(request: DifferenceQuotientRequest): DifferenceQuotientResult;
+  applyDifferenceQuotientRule(request: ApplyDifferenceQuotientRuleRequest): ApplyDifferenceQuotientRuleResult;
+  normalizeRealDomain(request: NormalizeRealDomainRequest): NormalizeRealDomainResult;
+  intersectRealDomains(request: IntersectRealDomainsRequest): NormalizeRealDomainResult;
+  compareRealDomains(request: CompareRealDomainsRequest): CompareRealDomainsResult;
+  realDomainContains(request: RealDomainContainsRequest): RealDomainMembershipResult;
+  protocolManifest(): ProtocolManifest;
+  validateMathExpression(request: ValidateMathExpressionRequest): ValidateMathExpressionResult;
   applyLinearEquationRule(request: ApplyLinearEquationRuleRequest): ApplyLinearEquationRuleResult;
   runLinearEquationStrategy(request: RunLinearEquationStrategyRequest): RunLinearEquationStrategyResult;
   validatePolynomialDerivation(

@@ -2,6 +2,21 @@ export type ExactValueDto =
   | { kind: "integer"; value: string }
   | { kind: "rational"; numerator: string; denominator: string };
 
+export type RealDomainProvenanceDto = "declared" | "natural" | "contextual" | "restricted";
+export type RealSetDto =
+  | { kind: "empty" }
+  | { kind: "all-real" }
+  | { kind: "point"; value: ExactValueDto }
+  | { kind: "interval"; lower: ExactValueDto; upper: ExactValueDto; lower_inclusive: boolean; upper_inclusive: boolean }
+  | { kind: "ray"; direction: string; boundary: ExactValueDto; inclusive: boolean }
+  | { kind: "union"; members: RealSetDto[] }
+  | { kind: "exclude"; base: RealSetDto; points: ExactValueDto[] }
+  | { kind: "set-builder"; source: string };
+export interface RealDomainDto { schema: string; version: number; set: RealSetDto; provenance: RealDomainProvenanceDto }
+export interface NormalizeRealDomainResponseDto { outcome: MathematicalOutcomeDto; domain: RealDomainDto | null; diagnostics: DiagnosticDto[] }
+export interface CompareRealDomainsResponseDto { outcome: MathematicalOutcomeDto; relation: string; equal: boolean | null; left_normalized: RealDomainDto | null; right_normalized: RealDomainDto | null; diagnostics: DiagnosticDto[] }
+export interface RealDomainMembershipResponseDto { outcome: MathematicalOutcomeDto; relation: string; contains: boolean | null; normalized_domain: RealDomainDto | null; diagnostics: DiagnosticDto[] }
+
 export type SolutionSetDto =
   | { kind: "empty" }
   | { kind: "unique"; value: ExactValueDto }
@@ -42,6 +57,29 @@ export interface CompareEquationSolutionSetsResponseDto {
 export interface MathExpressionDto {
   latex: string;
 }
+
+export interface ProtocolCapabilityDto { id: string; version: number }
+export interface ProtocolManifestDto { schema: string; version: number; capabilities: ProtocolCapabilityDto[] }
+export interface TypedVariableDto { symbol: string; type_id: string }
+export interface MathContextDto { theory_ids: string[]; variables: TypedVariableDto[]; assumptions: string[] }
+export interface ValidatedMathExpressionDto { schema: string; version: number; source_latex: string; canonical_latex: string; theory: string; context: MathContextDto; value_type: string; free_variables: TypedVariableDto[]; semantic_fingerprint: string }
+export interface ValidateMathExpressionResponseDto { outcome: MathematicalOutcomeDto; expression: ValidatedMathExpressionDto | null; diagnostics: DiagnosticDto[] }
+export interface UnitDimensionDto { base: string; exponent: ExactValueDto }
+export interface UnitDto { schema: string; version: number; dimensions: UnitDimensionDto[]; scale_to_canonical: ExactValueDto; symbol: string }
+export interface ExactQuantityDto { value: ExactValueDto; unit: UnitDto | null }
+export interface RealFunctionInputSourceDto { variable: string; label: string | null; unit: UnitDto | null }
+export interface RealFunctionOutputSourceDto { label: string | null; unit: UnitDto | null }
+export interface ExplicitFunctionDefinitionSourceDto { kind: string; expression: string; input_format: string }
+export interface RealFunctionSourceDto { schema: string; version: number; input: RealFunctionInputSourceDto; output: RealFunctionOutputSourceDto; definition: ExplicitFunctionDefinitionSourceDto; declared_domain: RealDomainDto | null; declared_codomain: RealDomainDto | null; parameters: string[]; assumptions: string[] }
+export interface RealFunctionDto { schema: string; version: number; input: TypedVariableDto; input_label: string | null; input_unit: UnitDto | null; output_type: string; output_label: string | null; output_unit: UnitDto | null; expression: ValidatedMathExpressionDto; natural_domain: RealDomainDto; declared_domain: RealDomainDto | null; effective_domain: RealDomainDto; declared_codomain: RealDomainDto | null; parameters: string[]; assumptions: string[]; semantic_fingerprint: string }
+export interface ValidateRealFunctionResponseDto { outcome: MathematicalOutcomeDto; function: RealFunctionDto | null; diagnostics: DiagnosticDto[] }
+export interface CompareRealFunctionsResponseDto { outcome: MathematicalOutcomeDto; relation: string; holds: boolean | null; conditions: string[]; left: RealFunctionDto | null; right: RealFunctionDto | null; completeness: string; diagnostics: DiagnosticDto[] }
+export interface EvaluateRealFunctionResponseDto { outcome: MathematicalOutcomeDto; value: ExactQuantityDto | null; function: RealFunctionDto | null; completeness: string; diagnostics: DiagnosticDto[] }
+export interface RealFunctionTableRowDto { input: ExactQuantityDto; outcome: MathematicalOutcomeDto; output: ExactQuantityDto | null; diagnostics: DiagnosticDto[] }
+export interface EvaluateRealFunctionTableResponseDto { outcome: MathematicalOutcomeDto; function: RealFunctionDto | null; rows: RealFunctionTableRowDto[]; completeness: string; diagnostics: DiagnosticDto[] }
+export interface AverageRateResponseDto { outcome: MathematicalOutcomeDto; relation: string; value: ExactQuantityDto | null; left_input: ExactQuantityDto; right_input: ExactQuantityDto; function: RealFunctionDto | null; completeness: string; diagnostics: DiagnosticDto[] }
+export interface DifferenceQuotientResponseDto { outcome: MathematicalOutcomeDto; relation: string; increment_variable: string; conditions: string[]; initial: MathExpressionDto | null; result: MathExpressionDto | null; result_unit: UnitDto | null; applicable_rules: string[]; steps: MathDerivationStepDto[]; completeness: string; diagnostics: DiagnosticDto[] }
+export interface ApplyDifferenceQuotientRuleResponseDto { outcome: MathematicalOutcomeDto; relation: string; rule: string; conditions: string[]; previous: MathExpressionDto | null; result: MathExpressionDto | null; step: MathDerivationStepDto | null; diagnostics: DiagnosticDto[] }
 
 export interface SetExpressionDto {
   latex: string;
@@ -194,6 +232,19 @@ export interface RunLinearEquationStrategyResponseDto {
 }
 
 export interface WasmMathEngineBinding {
+  validateRealFunction?(sourceJson: string): string;
+  compareRealFunctions?(leftJson: string, rightJson: string, relation: string): string;
+  evaluateRealFunction?(sourceJson: string, inputJson: string): string;
+  evaluateRealFunctionTable?(sourceJson: string, inputsJson: string): string;
+  averageRate?(sourceJson: string, leftJson: string, rightJson: string): string;
+  deriveDifferenceQuotient?(sourceJson: string, incrementVariable: string): string;
+  applyDifferenceQuotientRule?(sourceJson: string, incrementVariable: string, rule: string): string;
+  normalizeRealDomain?(domainJson: string): string;
+  intersectRealDomains?(leftJson: string, rightJson: string): string;
+  compareRealDomains?(leftJson: string, rightJson: string): string;
+  realDomainContains?(domainJson: string, valueJson: string): string;
+  protocolManifest?(): string;
+  validateMathExpression?(source: string, inputFormat: string, variable: string): string;
   applyLinearEquationRule?(source: string, variable: string, rule: string, operand?: string | null): string;
   runLinearEquationStrategy?(source: string, variable: string, strategy: string): string;
   solveLinearEquation(source: string, variable: string): string;

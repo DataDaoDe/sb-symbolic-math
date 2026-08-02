@@ -136,6 +136,23 @@ impl<'source> Parser<'source> {
         loop {
             self.skip_whitespace();
 
+            if self.consume_char('/') {
+                let operator_span = Span::new(self.cursor - 1, self.cursor);
+                let right = self.parse_power()?;
+                let span = left.span.join(right.span);
+                left = ConcreteExpression {
+                    kind: ConcreteExpressionKind::Binary {
+                        operator: BinaryOperator::Divide,
+                        operator_span,
+                        left: Box::new(left),
+                        right: Box::new(right),
+                        multiplication_kind: None,
+                    },
+                    span,
+                };
+                continue;
+            }
+
             let Some(kind) = self.next_multiplication_kind() else {
                 return Ok(left);
             };
@@ -538,6 +555,23 @@ mod tests {
 
         assert_eq!(operator_span, Span::new(1, 6));
         assert_eq!(multiplication_kind, Some(MultiplicationKind::ExplicitDot));
+    }
+
+    #[test]
+    fn parses_expression_division_at_multiplicative_precedence() {
+        let ParseOutcome::Parsed(expression) = Parser::parse_expression("(x^2 - 1)/(x - 1)") else {
+            panic!("expected parse success");
+        };
+        let ConcreteExpressionKind::Binary {
+            operator,
+            multiplication_kind,
+            ..
+        } = expression.kind
+        else {
+            panic!("expected binary division");
+        };
+        assert_eq!(operator, BinaryOperator::Divide);
+        assert_eq!(multiplication_kind, None);
     }
 
     #[test]

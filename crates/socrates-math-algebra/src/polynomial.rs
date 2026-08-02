@@ -11,6 +11,10 @@ pub struct PolynomialExpression {
 }
 
 impl PolynomialExpression {
+    pub fn is_zero(&self) -> bool {
+        self.coefficients.is_empty()
+    }
+
     pub fn constant(variable: impl Into<String>, constant: ExactRational) -> Self {
         let mut coefficients = BTreeMap::new();
         insert_coefficient(&mut coefficients, 0, constant);

@@ -14,6 +14,80 @@ pub enum ExactValueDto {
     },
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "kebab-case")]
+pub enum RealDomainProvenanceDto {
+    Declared,
+    Natural,
+    Contextual,
+    Restricted,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(tag = "kind", rename_all = "kebab-case")]
+pub enum RealSetDto {
+    Empty,
+    AllReal,
+    Point {
+        value: ExactValueDto,
+    },
+    Interval {
+        lower: ExactValueDto,
+        upper: ExactValueDto,
+        lower_inclusive: bool,
+        upper_inclusive: bool,
+    },
+    Ray {
+        direction: String,
+        boundary: ExactValueDto,
+        inclusive: bool,
+    },
+    Union {
+        members: Vec<RealSetDto>,
+    },
+    Exclude {
+        base: Box<RealSetDto>,
+        points: Vec<ExactValueDto>,
+    },
+    SetBuilder {
+        source: String,
+    },
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RealDomainDto {
+    pub schema: String,
+    pub version: u32,
+    pub set: RealSetDto,
+    pub provenance: RealDomainProvenanceDto,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct NormalizeRealDomainResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub domain: Option<RealDomainDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CompareRealDomainsResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub equal: Option<bool>,
+    pub left_normalized: Option<RealDomainDto>,
+    pub right_normalized: Option<RealDomainDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RealDomainMembershipResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub contains: Option<bool>,
+    pub normalized_domain: Option<RealDomainDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
 impl From<&ExactRational> for ExactValueDto {
     fn from(value: &ExactRational) -> Self {
         if value.denominator().to_string() == "1" {
@@ -82,6 +156,210 @@ pub struct CompareEquationsResponseDto {
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct MathExpressionDto {
     pub latex: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ProtocolCapabilityDto {
+    pub id: String,
+    pub version: u32,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ProtocolManifestDto {
+    pub schema: String,
+    pub version: u32,
+    pub capabilities: Vec<ProtocolCapabilityDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct TypedVariableDto {
+    pub symbol: String,
+    pub type_id: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct MathContextDto {
+    pub theory_ids: Vec<String>,
+    pub variables: Vec<TypedVariableDto>,
+    pub assumptions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ValidatedMathExpressionDto {
+    pub schema: String,
+    pub version: u32,
+    pub source_latex: String,
+    pub canonical_latex: String,
+    pub theory: String,
+    pub context: MathContextDto,
+    pub value_type: String,
+    pub free_variables: Vec<TypedVariableDto>,
+    pub semantic_fingerprint: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ValidateMathExpressionResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub expression: Option<ValidatedMathExpressionDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RealFunctionInputSourceDto {
+    pub variable: String,
+    pub label: Option<String>,
+    pub unit: Option<UnitDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RealFunctionOutputSourceDto {
+    pub label: Option<String>,
+    pub unit: Option<UnitDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UnitDimensionDto {
+    pub base: String,
+    pub exponent: ExactValueDto,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct UnitDto {
+    pub schema: String,
+    pub version: u32,
+    pub dimensions: Vec<UnitDimensionDto>,
+    pub scale_to_canonical: ExactValueDto,
+    pub symbol: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ExactQuantityDto {
+    pub value: ExactValueDto,
+    pub unit: Option<UnitDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ExplicitFunctionDefinitionSourceDto {
+    pub kind: String,
+    pub expression: String,
+    pub input_format: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RealFunctionSourceDto {
+    pub schema: String,
+    pub version: u32,
+    pub input: RealFunctionInputSourceDto,
+    pub output: RealFunctionOutputSourceDto,
+    pub definition: ExplicitFunctionDefinitionSourceDto,
+    pub declared_domain: Option<RealDomainDto>,
+    pub declared_codomain: Option<RealDomainDto>,
+    pub parameters: Vec<String>,
+    pub assumptions: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RealFunctionDto {
+    pub schema: String,
+    pub version: u32,
+    pub input: TypedVariableDto,
+    pub input_label: Option<String>,
+    pub input_unit: Option<UnitDto>,
+    pub output_type: String,
+    pub output_label: Option<String>,
+    pub output_unit: Option<UnitDto>,
+    pub expression: ValidatedMathExpressionDto,
+    pub natural_domain: RealDomainDto,
+    pub declared_domain: Option<RealDomainDto>,
+    pub effective_domain: RealDomainDto,
+    pub declared_codomain: Option<RealDomainDto>,
+    pub parameters: Vec<String>,
+    pub assumptions: Vec<String>,
+    pub semantic_fingerprint: String,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EvaluateRealFunctionResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub value: Option<ExactQuantityDto>,
+    pub function: Option<RealFunctionDto>,
+    pub completeness: String,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct RealFunctionTableRowDto {
+    pub input: ExactQuantityDto,
+    pub outcome: MathematicalOutcomeKindDto,
+    pub output: Option<ExactQuantityDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct EvaluateRealFunctionTableResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub function: Option<RealFunctionDto>,
+    pub rows: Vec<RealFunctionTableRowDto>,
+    pub completeness: String,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct AverageRateResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub value: Option<ExactQuantityDto>,
+    pub left_input: ExactQuantityDto,
+    pub right_input: ExactQuantityDto,
+    pub function: Option<RealFunctionDto>,
+    pub completeness: String,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct DifferenceQuotientResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub increment_variable: String,
+    pub conditions: Vec<String>,
+    pub initial: Option<MathExpressionDto>,
+    pub result: Option<MathExpressionDto>,
+    pub result_unit: Option<UnitDto>,
+    pub applicable_rules: Vec<String>,
+    pub steps: Vec<MathDerivationStepDto>,
+    pub completeness: String,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ApplyDifferenceQuotientRuleResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub rule: String,
+    pub conditions: Vec<String>,
+    pub previous: Option<MathExpressionDto>,
+    pub result: Option<MathExpressionDto>,
+    pub step: Option<MathDerivationStepDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct ValidateRealFunctionResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub function: Option<RealFunctionDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CompareRealFunctionsResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub holds: Option<bool>,
+    pub conditions: Vec<String>,
+    pub left: Option<RealFunctionDto>,
+    pub right: Option<RealFunctionDto>,
+    pub completeness: String,
+    pub diagnostics: Vec<DiagnosticDto>,
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]

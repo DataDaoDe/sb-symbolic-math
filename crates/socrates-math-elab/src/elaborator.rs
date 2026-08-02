@@ -165,6 +165,7 @@ fn elaborate_expression(
                 BinaryOperator::Add => symbol("core.rational.add"),
                 BinaryOperator::Subtract => symbol("core.rational.sub"),
                 BinaryOperator::Multiply => symbol("core.rational.mul"),
+                BinaryOperator::Divide => symbol("core.rational.div"),
                 BinaryOperator::Power => symbol("core.rational.pow"),
             };
 
@@ -259,6 +260,22 @@ mod tests {
             term,
             SemanticTerm::rational(ExactRational::parse_fraction("1", "2").unwrap())
         );
+    }
+
+    #[test]
+    fn elaborates_expression_division_as_a_semantic_operation() {
+        let ParseOutcome::Parsed(expression) = Parser::parse_expression("x/(x - 1)") else {
+            panic!("expected parse success");
+        };
+        let ElaborationOutcome::Elaborated(term) =
+            Elaborator::elaborate_expression(&expression, &rational_context())
+        else {
+            panic!("expected elaboration success");
+        };
+        let SemanticTerm::Apply { symbol, .. } = term else {
+            panic!("expected semantic division");
+        };
+        assert_eq!(symbol.as_str(), "core.rational.div");
     }
 
     #[test]

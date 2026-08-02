@@ -14,6 +14,18 @@ import type {
   NormalizeSetExpressionResponseDto,
   SolveLinearEquationResponseDto,
   TransformMathExpressionResponseDto,
+  ProtocolManifestDto,
+  ValidateMathExpressionResponseDto,
+  NormalizeRealDomainResponseDto,
+  CompareRealDomainsResponseDto,
+  RealDomainMembershipResponseDto,
+  ValidateRealFunctionResponseDto,
+  CompareRealFunctionsResponseDto,
+  EvaluateRealFunctionResponseDto,
+  EvaluateRealFunctionTableResponseDto,
+  AverageRateResponseDto,
+  DifferenceQuotientResponseDto,
+  ApplyDifferenceQuotientRuleResponseDto,
   WasmMathEngineBinding,
 } from "./dto.js";
 import {
@@ -30,6 +42,21 @@ import {
   mapNormalizeSetExpressionResponse,
   mapSolveLinearEquationResponse,
   mapTransformMathExpressionResponse,
+  mapProtocolManifest,
+  mapValidateMathExpressionResponse,
+  mapNormalizeRealDomainResponse,
+  mapCompareRealDomainsResponse,
+  mapRealDomainMembershipResponse,
+  toRealDomainDto,
+  toRealFunctionSourceDto,
+  mapValidateRealFunctionResponse,
+  mapCompareRealFunctionsResponse,
+  toExactQuantityDto,
+  mapEvaluateRealFunctionResponse,
+  mapEvaluateRealFunctionTableResponse,
+  mapAverageRateResponse,
+  mapDifferenceQuotientResponse,
+  mapApplyDifferenceQuotientRuleResponse,
   toRuleTargetDto,
 } from "./mapping.js";
 import type { MathEngine } from "./types.js";
@@ -45,6 +72,58 @@ export async function createMathEngine(
   const wasmEngine = options.wasmEngine;
 
   return {
+    validateRealFunction(request) {
+      if (!wasmEngine.validateRealFunction) return { outcome: "unknown", function: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot validate real functions." }] };
+      return mapValidateRealFunctionResponse(parseJson<ValidateRealFunctionResponseDto>(wasmEngine.validateRealFunction(JSON.stringify(toRealFunctionSourceDto(request.source)))));
+    },
+    compareRealFunctions(request) {
+      if (!wasmEngine.compareRealFunctions) return { outcome: "unknown", relation: request.relation, holds: null, conditions: [], left: null, right: null, completeness: "unsupported", diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot compare real functions." }] };
+      return mapCompareRealFunctionsResponse(parseJson<CompareRealFunctionsResponseDto>(wasmEngine.compareRealFunctions(JSON.stringify(toRealFunctionSourceDto(request.left)), JSON.stringify(toRealFunctionSourceDto(request.right)), request.relation)));
+    },
+    evaluateRealFunction(request) {
+      if (!wasmEngine.evaluateRealFunction) return { outcome: "unknown", value: null, function: null, completeness: "unsupported", diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot evaluate real functions." }] };
+      return mapEvaluateRealFunctionResponse(parseJson<EvaluateRealFunctionResponseDto>(wasmEngine.evaluateRealFunction(JSON.stringify(toRealFunctionSourceDto(request.source)), JSON.stringify(toExactQuantityDto(request.input)))));
+    },
+    evaluateRealFunctionTable(request) {
+      if (!wasmEngine.evaluateRealFunctionTable) return { outcome: "unknown", function: null, rows: [], completeness: "unsupported", diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot evaluate real-function tables." }] };
+      return mapEvaluateRealFunctionTableResponse(parseJson<EvaluateRealFunctionTableResponseDto>(wasmEngine.evaluateRealFunctionTable(JSON.stringify(toRealFunctionSourceDto(request.source)), JSON.stringify(request.inputs.map(toExactQuantityDto)))));
+    },
+    averageRate(request) {
+      if (!wasmEngine.averageRate) return { outcome: "unknown", relation: "function.average-rate", value: null, leftInput: request.leftInput, rightInput: request.rightInput, function: null, completeness: "unsupported", diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot compute exact average rates." }] };
+      return mapAverageRateResponse(parseJson<AverageRateResponseDto>(wasmEngine.averageRate(JSON.stringify(toRealFunctionSourceDto(request.source)), JSON.stringify(toExactQuantityDto(request.leftInput)), JSON.stringify(toExactQuantityDto(request.rightInput)))));
+    },
+    deriveDifferenceQuotient(request) {
+      if (!wasmEngine.deriveDifferenceQuotient) return { outcome: "unknown", relation: "function.difference-quotient", incrementVariable: request.incrementVariable, conditions: [], initial: null, result: null, resultUnit: null, applicableRules: [], steps: [], completeness: "unsupported", diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot derive polynomial difference quotients." }] };
+      return mapDifferenceQuotientResponse(parseJson<DifferenceQuotientResponseDto>(wasmEngine.deriveDifferenceQuotient(JSON.stringify(toRealFunctionSourceDto(request.source)), request.incrementVariable)));
+    },
+    applyDifferenceQuotientRule(request) {
+      if (!wasmEngine.applyDifferenceQuotientRule) return { outcome: "unknown", relation: "function.difference-quotient", rule: request.rule, conditions: [], previous: null, result: null, step: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot apply difference-quotient rules." }] };
+      return mapApplyDifferenceQuotientRuleResponse(parseJson<ApplyDifferenceQuotientRuleResponseDto>(wasmEngine.applyDifferenceQuotientRule(JSON.stringify(toRealFunctionSourceDto(request.source)), request.incrementVariable, request.rule)));
+    },
+    normalizeRealDomain(request) {
+      if (!wasmEngine.normalizeRealDomain) return unsupportedDomainNormalization();
+      return mapNormalizeRealDomainResponse(parseJson<NormalizeRealDomainResponseDto>(wasmEngine.normalizeRealDomain(JSON.stringify(toRealDomainDto(request.domain)))));
+    },
+    intersectRealDomains(request) {
+      if (!wasmEngine.intersectRealDomains) return unsupportedDomainNormalization();
+      return mapNormalizeRealDomainResponse(parseJson<NormalizeRealDomainResponseDto>(wasmEngine.intersectRealDomains(JSON.stringify(toRealDomainDto(request.left)), JSON.stringify(toRealDomainDto(request.right)))));
+    },
+    compareRealDomains(request) {
+      if (!wasmEngine.compareRealDomains) return { outcome: "unknown", relation: "domain.real.equal", equal: null, leftNormalized: null, rightNormalized: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot compare real domains." }] };
+      return mapCompareRealDomainsResponse(parseJson<CompareRealDomainsResponseDto>(wasmEngine.compareRealDomains(JSON.stringify(toRealDomainDto(request.left)), JSON.stringify(toRealDomainDto(request.right)))));
+    },
+    realDomainContains(request) {
+      if (!wasmEngine.realDomainContains) return { outcome: "unknown", relation: "domain.real.membership", contains: null, normalizedDomain: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot decide real-domain membership." }] };
+      return mapRealDomainMembershipResponse(parseJson<RealDomainMembershipResponseDto>(wasmEngine.realDomainContains(JSON.stringify(toRealDomainDto(request.domain)), JSON.stringify(request.value))));
+    },
+    protocolManifest() {
+      if (!wasmEngine.protocolManifest) throw new Error("The loaded math engine does not expose a protocol manifest.");
+      return mapProtocolManifest(parseJson<ProtocolManifestDto>(wasmEngine.protocolManifest()));
+    },
+    validateMathExpression(request) {
+      if (!wasmEngine.validateMathExpression) return { outcome: "unknown", expression: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded math engine cannot validate semantic expressions." }] };
+      return mapValidateMathExpressionResponse(parseJson<ValidateMathExpressionResponseDto>(wasmEngine.validateMathExpression(request.expression, request.inputFormat, request.variable)));
+    },
     runLinearEquationStrategy(request) {
       if (!wasmEngine.runLinearEquationStrategy) return { outcome: "unknown", relation: "strategy.linear-equation", strategy: request.strategy, initialLatex: request.equation, resultLatex: null, steps: [], diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot run linear-equation strategies." }] };
       const dto = parseJson<RunLinearEquationStrategyResponseDto>(wasmEngine.runLinearEquationStrategy(request.equation, request.variable, request.strategy));
@@ -491,6 +570,10 @@ export async function createMathEngine(
       return mapApplyRuleResponse(dto);
     },
   };
+}
+
+function unsupportedDomainNormalization() {
+  return { outcome: "unknown" as const, domain: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot normalize real domains." }] };
 }
 
 function validatePolynomialDerivation(wasmEngine: WasmMathEngineBinding, request: ValidatePolynomialDerivationRequest): ValidatePolynomialDerivationResult {
