@@ -59,11 +59,55 @@ import {
   mapApplyDifferenceQuotientRuleResponse,
   toRuleTargetDto,
 } from "./mapping.js";
-import type { MathEngine } from "./types.js";
+import type {
+  CompareExactPointAnswerRequest,
+  CompareNumericAnswerRequest,
+  CompareNumericAnswerResult,
+  MathEngine,
+} from "./types.js";
 import type { AuthoredLinearSolutionSet, CompareAuthoredLinearSolutionSetsRequest, CompareAuthoredLinearSolutionSetsResult, ValidatePolynomialDerivationRequest, ValidatePolynomialDerivationResult } from "./types.js";
 
 export interface CreateMathEngineOptions {
   wasmEngine: WasmMathEngineBinding;
+}
+
+function compareNumericWithEngine(
+  wasmEngine: WasmMathEngineBinding,
+  request: CompareNumericAnswerRequest,
+): CompareNumericAnswerResult {
+  if (!wasmEngine.compareNumericAnswer) {
+    return {
+      outcome: "unknown",
+      relation: request.grading.mode === "exact"
+        ? "number.exact_equal"
+        : "number.within_tolerance",
+      equal: null,
+      submittedNormalized: null,
+      expectedNormalized: null,
+      absoluteError: null,
+      acceptedTolerance: null,
+      diagnostics: [{
+        code: "Engine.UnsupportedOperation",
+        message: "The loaded math engine cannot compare numeric answers.",
+      }],
+    };
+  }
+
+  const dto = parseJson<CompareNumericAnswerResponseDto>(
+    wasmEngine.compareNumericAnswer(
+      request.submitted,
+      request.expected,
+      request.inputFormat,
+      request.grading.mode,
+      request.grading.mode === "approximate"
+        ? request.grading.absoluteTolerance
+        : "0",
+      request.grading.mode === "approximate"
+        ? request.grading.relativeTolerance ?? undefined
+        : undefined,
+    ),
+  );
+  return mapCompareNumericAnswerResponse(dto);
 }
 
 export async function createMathEngine(
@@ -99,6 +143,30 @@ export async function createMathEngine(
     applyDifferenceQuotientRule(request) {
       if (!wasmEngine.applyDifferenceQuotientRule) return { outcome: "unknown", relation: "function.difference-quotient", rule: request.rule, conditions: [], previous: null, result: null, step: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot apply difference-quotient rules." }] };
       return mapApplyDifferenceQuotientRuleResponse(parseJson<ApplyDifferenceQuotientRuleResponseDto>(wasmEngine.applyDifferenceQuotientRule(JSON.stringify(toRealFunctionSourceDto(request.source)), request.incrementVariable, request.rule)));
+    },
+    sampleRealFunctionGraph(_request) {
+      return {
+        outcome: "unknown",
+        function: null,
+        segments: [],
+        completeness: "unsupported",
+        diagnostics: [{
+          code: "Engine.UnsupportedOperation",
+          message: "The loaded engine cannot produce certified real-function graph samples.",
+        }],
+      };
+    },
+    queryRealFunctionGraphFeatures(_request) {
+      return {
+        outcome: "unknown",
+        function: null,
+        features: [],
+        completeness: "unsupported",
+        diagnostics: [{
+          code: "Engine.UnsupportedOperation",
+          message: "The loaded engine cannot query exact real-function graph features.",
+        }],
+      };
     },
     normalizeRealDomain(request) {
       if (!wasmEngine.normalizeRealDomain) return unsupportedDomainNormalization();
@@ -441,41 +509,89 @@ export async function createMathEngine(
     },
 
     compareNumericAnswer(request) {
-      if (!wasmEngine.compareNumericAnswer) {
+      return compareNumericWithEngine(wasmEngine, request);
+    },
+
+    compareExactPointAnswer(request: CompareExactPointAnswerRequest) {
+      const compare = (submitted: string, expected: string) =>
+        compareNumericWithEngine(wasmEngine, {
+          submitted,
+          expected,
+          inputFormat: request.inputFormat,
+          grading: { mode: "exact" },
+        });
+      const x = compare(request.submitted.x, request.expected.x);
+      const y = compare(request.submitted.y, request.expected.y);
+      const diagnostics = [...x.diagnostics, ...y.diagnostics];
+
+      if (x.equal === null || y.equal === null ||
+          !x.submittedNormalized || !y.submittedNormalized ||
+          !x.expectedNormalized || !y.expectedNormalized) {
         return {
-          outcome: "unknown",
-          relation: request.grading.mode === "exact"
-            ? "number.exact_equal"
-            : "number.within_tolerance",
+          outcome: "unknown" as const,
+          relation: "point.exact_equal" as const,
           equal: null,
+          comparison: null,
           submittedNormalized: null,
           expectedNormalized: null,
-          absoluteError: null,
-          acceptedTolerance: null,
-          diagnostics: [
-            {
-              code: "Engine.UnsupportedOperation",
-              message: "The loaded math engine cannot compare numeric answers.",
-            },
-          ],
+          diagnostics,
         };
       }
 
-      const dto = parseJson<CompareNumericAnswerResponseDto>(
-        wasmEngine.compareNumericAnswer(
-          request.submitted,
-          request.expected,
-          request.inputFormat,
-          request.grading.mode,
-          request.grading.mode === "approximate"
-            ? request.grading.absoluteTolerance
-            : "0",
-          request.grading.mode === "approximate"
-            ? request.grading.relativeTolerance ?? undefined
-            : undefined,
-        ),
-      );
-      return mapCompareNumericAnswerResponse(dto);
+      const normalized = {
+        submittedNormalized: {
+          x: x.submittedNormalized,
+          y: y.submittedNormalized,
+        },
+        expectedNormalized: {
+          x: x.expectedNormalized,
+          y: y.expectedNormalized,
+        },
+      };
+      if (x.equal && y.equal) {
+        return {
+          outcome: "proven" as const,
+          relation: "point.exact_equal" as const,
+          equal: true,
+          comparison: "equal" as const,
+          ...normalized,
+          diagnostics,
+        };
+      }
+
+      const exact = (submitted: string, expected: string) =>
+        compare(submitted, expected).equal === true;
+      const negative = (expression: string) => `-(${expression})`;
+      let comparison: Exclude<ReturnType<MathEngine["compareExactPointAnswer"]>["comparison"], null>;
+
+      if (exact(request.submitted.x, request.expected.y) &&
+          exact(request.submitted.y, request.expected.x)) {
+        comparison = "coordinates_swapped";
+      } else if (exact(request.submitted.x, negative(request.expected.x)) && y.equal) {
+        comparison = "x_sign_error";
+      } else if (x.equal && exact(request.submitted.y, negative(request.expected.y))) {
+        comparison = "y_sign_error";
+      } else if (
+        exact(request.submitted.x, negative(request.expected.x)) &&
+        exact(request.submitted.y, negative(request.expected.y))
+      ) {
+        comparison = "both_sign_errors";
+      } else if (y.equal) {
+        comparison = "x_mismatch";
+      } else if (x.equal) {
+        comparison = "y_mismatch";
+      } else {
+        comparison = "mismatch";
+      }
+
+      return {
+        outcome: "disproven" as const,
+        relation: "point.exact_equal" as const,
+        equal: false,
+        comparison,
+        ...normalized,
+        diagnostics,
+      };
     },
 
     differentiateMathExpression(request) {

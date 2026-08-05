@@ -104,6 +104,76 @@ export interface DifferenceQuotientResult { outcome: MathematicalOutcome; relati
 export interface ApplyDifferenceQuotientRuleRequest extends DifferenceQuotientRequest { rule: string }
 export interface ApplyDifferenceQuotientRuleResult { outcome: MathematicalOutcome; relation: "function.difference-quotient"; rule: string; conditions: string[]; previous: MathExpression | null; result: MathExpression | null; step: MathDerivationStep | null; diagnostics: MathDiagnostic[] }
 
+export type RealFunctionGraphRefinement =
+  | "initial"
+  | "interactive"
+  | "settled"
+  | "export";
+
+export type RealFunctionGraphSegmentStatus =
+  | "certified_continuous"
+  | "discontinuity_boundary"
+  | "uncertain";
+
+export interface SampleRealFunctionGraphRequest {
+  source: RealFunctionSource;
+  visibleInput: { min: number; max: number };
+  viewportPixels: { width: number; height: number };
+  visibleOutput: { min: number; max: number };
+  targetScreenErrorPx: number;
+  maxSamples: number;
+  refinement: RealFunctionGraphRefinement;
+}
+
+export interface RealFunctionGraphSampleSegment {
+  status: RealFunctionGraphSegmentStatus;
+  points: readonly number[];
+  inputEnclosures: readonly number[] | null;
+  outputEnclosures: readonly number[] | null;
+  errorBound: number | null;
+  diagnostics: MathDiagnostic[];
+}
+
+export interface SampleRealFunctionGraphResult {
+  outcome: MathematicalOutcome;
+  function: RealFunction | null;
+  segments: RealFunctionGraphSampleSegment[];
+  completeness: string;
+  diagnostics: MathDiagnostic[];
+}
+
+export type RealFunctionGraphFeatureKind =
+  | "evaluated_point"
+  | "x_intercept"
+  | "y_intercept"
+  | "excluded_point"
+  | "hole"
+  | "pole"
+  | "intersection";
+
+export interface QueryRealFunctionGraphFeaturesRequest {
+  source: RealFunctionSource;
+  kinds: readonly RealFunctionGraphFeatureKind[];
+  visibleInput?: { min: ExactValue; max: ExactValue };
+  otherFunction?: RealFunctionSource;
+}
+
+export interface RealFunctionGraphFeature {
+  id: string;
+  kind: RealFunctionGraphFeatureKind;
+  x: ExactValue;
+  y: ExactValue | null;
+  conditions: string[];
+}
+
+export interface QueryRealFunctionGraphFeaturesResult {
+  outcome: MathematicalOutcome;
+  function: RealFunction | null;
+  features: RealFunctionGraphFeature[];
+  completeness: string;
+  diagnostics: MathDiagnostic[];
+}
+
 export type SetExpressionInputFormat = "latex";
 
 export interface SetExpression {
@@ -330,6 +400,37 @@ export interface CompareNumericAnswerResult {
   diagnostics: MathDiagnostic[];
 }
 
+export interface ExactPointInput {
+  x: string;
+  y: string;
+}
+
+export type ExactPointComparison =
+  | "equal"
+  | "coordinates_swapped"
+  | "x_sign_error"
+  | "y_sign_error"
+  | "both_sign_errors"
+  | "x_mismatch"
+  | "y_mismatch"
+  | "mismatch";
+
+export interface CompareExactPointAnswerRequest {
+  submitted: ExactPointInput;
+  expected: ExactPointInput;
+  inputFormat: MathExpressionInputFormat | "plain";
+}
+
+export interface CompareExactPointAnswerResult {
+  outcome: MathematicalOutcome;
+  relation: "point.exact_equal";
+  equal: boolean | null;
+  comparison: ExactPointComparison | null;
+  submittedNormalized: { x: ExactValue; y: ExactValue } | null;
+  expectedNormalized: { x: ExactValue; y: ExactValue } | null;
+  diagnostics: MathDiagnostic[];
+}
+
 export interface MathDerivationStep {
   rule: string;
   reason: string;
@@ -411,6 +512,8 @@ export interface MathEngine {
   averageRate(request: AverageRateRequest): AverageRateResult;
   deriveDifferenceQuotient(request: DifferenceQuotientRequest): DifferenceQuotientResult;
   applyDifferenceQuotientRule(request: ApplyDifferenceQuotientRuleRequest): ApplyDifferenceQuotientRuleResult;
+  sampleRealFunctionGraph(request: SampleRealFunctionGraphRequest): SampleRealFunctionGraphResult;
+  queryRealFunctionGraphFeatures(request: QueryRealFunctionGraphFeaturesRequest): QueryRealFunctionGraphFeaturesResult;
   normalizeRealDomain(request: NormalizeRealDomainRequest): NormalizeRealDomainResult;
   intersectRealDomains(request: IntersectRealDomainsRequest): NormalizeRealDomainResult;
   compareRealDomains(request: CompareRealDomainsRequest): CompareRealDomainsResult;
@@ -490,6 +593,10 @@ export interface MathEngine {
   compareNumericAnswer(
     request: CompareNumericAnswerRequest,
   ): CompareNumericAnswerResult;
+
+  compareExactPointAnswer(
+    request: CompareExactPointAnswerRequest,
+  ): CompareExactPointAnswerResult;
 
   differentiateMathExpression(
     request: TransformMathExpressionRequest,
