@@ -400,6 +400,13 @@ export interface CompareNumericAnswerResult {
   diagnostics: MathDiagnostic[];
 }
 
+export interface BaseTenPlace { exponent: number; coefficient: number }
+export interface DecomposeBaseTenRequest { value: ExactValue; minimumExponent: number; maximumExponent: number }
+export interface ComposeBaseTenRequest { places: readonly BaseTenPlace[] }
+export interface CompareBaseTenRequest extends DecomposeBaseTenRequest { submitted: readonly BaseTenPlace[] }
+export interface BaseTenDecompositionResult { outcome: MathematicalOutcome; value: ExactValue | null; places: BaseTenPlace[]; diagnostics: MathDiagnostic[] }
+export interface CompareBaseTenResult { outcome: MathematicalOutcome; relation: "number.base-ten-place-value"; equal: boolean | null; expectedNormalized: ExactValue | null; submittedNormalized: ExactValue | null; expectedPlaces: BaseTenPlace[]; submittedPlaces: BaseTenPlace[]; diagnostics: MathDiagnostic[] }
+
 export interface ExactPointInput {
   x: string;
   y: string;
@@ -411,6 +418,7 @@ export type ExactPointComparison =
   | "x_sign_error"
   | "y_sign_error"
   | "both_sign_errors"
+  | "scale_mismatch"
   | "x_mismatch"
   | "y_mismatch"
   | "mismatch";
@@ -418,6 +426,7 @@ export type ExactPointComparison =
 export interface CompareExactPointAnswerRequest {
   submitted: ExactPointInput;
   expected: ExactPointInput;
+  gridStep: string;
   inputFormat: MathExpressionInputFormat | "plain";
 }
 
@@ -505,6 +514,9 @@ export interface ApplyMathExpressionRuleResult {
 }
 
 export interface MathEngine {
+  decomposeBaseTen(request: DecomposeBaseTenRequest): BaseTenDecompositionResult;
+  composeBaseTen(request: ComposeBaseTenRequest): BaseTenDecompositionResult;
+  compareBaseTen(request: CompareBaseTenRequest): CompareBaseTenResult;
   validateRealFunction(request: ValidateRealFunctionRequest): ValidateRealFunctionResult;
   compareRealFunctions(request: CompareRealFunctionsRequest): CompareRealFunctionsResult;
   evaluateRealFunction(request: EvaluateRealFunctionRequest): EvaluateRealFunctionResult;

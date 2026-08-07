@@ -4,6 +4,8 @@ import type {
   CompareEquationSolutionSetsResponseDto,
   CompareMathExpressionsResponseDto,
   CompareNumericAnswerResponseDto,
+  BaseTenDecompositionResponseDto,
+  CompareBaseTenResponseDto,
   CompareSetExpressionsResponseDto,
   EvaluateFiniteRelationPredicateResponseDto,
   EvaluateSetCardinalityResponseDto,
@@ -43,6 +45,8 @@ import type {
   CompareEquationSolutionSetsResult,
   CompareMathExpressionsResult,
   CompareNumericAnswerResult,
+  BaseTenDecompositionResult,
+  CompareBaseTenResult,
   CompareSetExpressionsResult,
   EvaluateFiniteRelationPredicateResult,
   EvaluateSetCardinalityResult,
@@ -398,6 +402,30 @@ export function mapCompareNumericAnswerResponse(
     expectedNormalized: dto.expected_normalized ? mapExactValue(dto.expected_normalized) : null,
     absoluteError: dto.absolute_error ? mapExactValue(dto.absolute_error) : null,
     acceptedTolerance: dto.accepted_tolerance ? mapExactValue(dto.accepted_tolerance) : null,
+    diagnostics: dto.diagnostics,
+  };
+}
+
+export function mapBaseTenDecompositionResponse(
+  dto: BaseTenDecompositionResponseDto,
+): BaseTenDecompositionResult {
+  return {
+    outcome: dto.outcome,
+    value: dto.value ? mapExactValue(dto.value) : null,
+    places: dto.places,
+    diagnostics: dto.diagnostics,
+  };
+}
+
+export function mapCompareBaseTenResponse(dto: CompareBaseTenResponseDto): CompareBaseTenResult {
+  return {
+    outcome: dto.outcome,
+    relation: "number.base-ten-place-value",
+    equal: dto.equal,
+    expectedNormalized: dto.expected_normalized ? mapExactValue(dto.expected_normalized) : null,
+    submittedNormalized: dto.submitted_normalized ? mapExactValue(dto.submitted_normalized) : null,
+    expectedPlaces: dto.expected_places,
+    submittedPlaces: dto.submitted_places,
     diagnostics: dto.diagnostics,
   };
 }

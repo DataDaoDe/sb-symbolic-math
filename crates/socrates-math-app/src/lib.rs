@@ -7,6 +7,7 @@ use socrates_math_core::{
 use socrates_math_elab::{ElaborationDiagnosticCode, ElaborationOutcome, Elaborator};
 use socrates_math_protocol::{
     ApplicableRuleDto, ApplyLinearEquationRuleResponseDto, ApplyRuleResponseDto,
+    BaseTenDecompositionResponseDto, BaseTenPlaceDto, CompareBaseTenResponseDto,
     CompareEquationsResponseDto, CompareMathExpressionsResponseDto,
     CompareNumericAnswerResponseDto, CompareSetExpressionsResponseDto, DiagnosticDto,
     EvaluateFiniteRelationPredicateResponseDto, EvaluateSetCardinalityResponseDto,
@@ -23,6 +24,7 @@ use socrates_math_solve::LinearEquationSolver;
 use socrates_math_syntax::{DiagnosticCode, ParseOutcome, Parser};
 use std::collections::{BTreeMap, BTreeSet};
 
+mod base_ten;
 mod rates;
 mod real_domain;
 mod real_function;
@@ -38,6 +40,10 @@ impl MathEngine {
             capabilities: vec![
                 ProtocolCapabilityDto {
                     id: "protocol.manifest".to_owned(),
+                    version: 1,
+                },
+                ProtocolCapabilityDto {
+                    id: "number.base-ten-place-value".to_owned(),
                     version: 1,
                 },
                 ProtocolCapabilityDto {
@@ -94,6 +100,27 @@ impl MathEngine {
                 },
             ],
         }
+    }
+
+    pub fn decompose_base_ten(
+        value: &ExactValueDto,
+        minimum_exponent: i32,
+        maximum_exponent: i32,
+    ) -> BaseTenDecompositionResponseDto {
+        base_ten::decompose_response(value, minimum_exponent, maximum_exponent)
+    }
+
+    pub fn compose_base_ten(places: &[BaseTenPlaceDto]) -> BaseTenDecompositionResponseDto {
+        base_ten::compose_response(places)
+    }
+
+    pub fn compare_base_ten(
+        expected: &ExactValueDto,
+        submitted: &[BaseTenPlaceDto],
+        minimum_exponent: i32,
+        maximum_exponent: i32,
+    ) -> CompareBaseTenResponseDto {
+        base_ten::compare_response(expected, submitted, minimum_exponent, maximum_exponent)
     }
 
     pub fn normalize_real_domain(

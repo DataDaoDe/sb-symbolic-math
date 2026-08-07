@@ -455,6 +455,32 @@ pub struct CompareNumericAnswerResponseDto {
 }
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BaseTenPlaceDto {
+    pub exponent: i32,
+    pub coefficient: u8,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct BaseTenDecompositionResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub value: Option<ExactValueDto>,
+    pub places: Vec<BaseTenPlaceDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+pub struct CompareBaseTenResponseDto {
+    pub outcome: MathematicalOutcomeKindDto,
+    pub relation: String,
+    pub equal: Option<bool>,
+    pub expected_normalized: Option<ExactValueDto>,
+    pub submitted_normalized: Option<ExactValueDto>,
+    pub expected_places: Vec<BaseTenPlaceDto>,
+    pub submitted_places: Vec<BaseTenPlaceDto>,
+    pub diagnostics: Vec<DiagnosticDto>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 pub struct MathDerivationStepDto {
     pub rule: String,
     pub reason: String,

@@ -5,6 +5,8 @@ import type {
   CompareEquationSolutionSetsResponseDto,
   CompareMathExpressionsResponseDto,
   CompareNumericAnswerResponseDto,
+  BaseTenDecompositionResponseDto,
+  CompareBaseTenResponseDto,
   CompareSetExpressionsResponseDto,
   EvaluateFiniteRelationPredicateResponseDto,
   EvaluateSetCardinalityResponseDto,
@@ -33,6 +35,8 @@ import {
   mapCompareEquationSolutionSetsResponse,
   mapCompareMathExpressionsResponse,
   mapCompareNumericAnswerResponse,
+  mapBaseTenDecompositionResponse,
+  mapCompareBaseTenResponse,
   mapCompareSetExpressionsResponse,
   mapEvaluateFiniteRelationPredicateResponse,
   mapEvaluateSetCardinalityResponse,
@@ -116,6 +120,18 @@ export async function createMathEngine(
   const wasmEngine = options.wasmEngine;
 
   return {
+    decomposeBaseTen(request) {
+      if (!wasmEngine.decomposeBaseTen) return { outcome: "unknown", value: null, places: [], diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot decompose exact base-ten values." }] };
+      return mapBaseTenDecompositionResponse(parseJson<BaseTenDecompositionResponseDto>(wasmEngine.decomposeBaseTen(JSON.stringify(request.value), request.minimumExponent, request.maximumExponent)));
+    },
+    composeBaseTen(request) {
+      if (!wasmEngine.composeBaseTen) return { outcome: "unknown", value: null, places: [], diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot compose exact base-ten values." }] };
+      return mapBaseTenDecompositionResponse(parseJson<BaseTenDecompositionResponseDto>(wasmEngine.composeBaseTen(JSON.stringify(request.places))));
+    },
+    compareBaseTen(request) {
+      if (!wasmEngine.compareBaseTen) return { outcome: "unknown", relation: "number.base-ten-place-value", equal: null, expectedNormalized: null, submittedNormalized: null, expectedPlaces: [], submittedPlaces: [], diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot grade semantic base-ten constructions." }] };
+      return mapCompareBaseTenResponse(parseJson<CompareBaseTenResponseDto>(wasmEngine.compareBaseTen(JSON.stringify(request.value), JSON.stringify(request.submitted), request.minimumExponent, request.maximumExponent)));
+    },
     validateRealFunction(request) {
       if (!wasmEngine.validateRealFunction) return { outcome: "unknown", function: null, diagnostics: [{ code: "Engine.UnsupportedOperation", message: "The loaded engine cannot validate real functions." }] };
       return mapValidateRealFunctionResponse(parseJson<ValidateRealFunctionResponseDto>(wasmEngine.validateRealFunction(JSON.stringify(toRealFunctionSourceDto(request.source)))));
@@ -576,6 +592,11 @@ export async function createMathEngine(
         exact(request.submitted.y, negative(request.expected.y))
       ) {
         comparison = "both_sign_errors";
+      } else if (
+        (!x.equal && exact(request.submitted.x, `(${request.expected.x})/(${request.gridStep})`)) ||
+        (!y.equal && exact(request.submitted.y, `(${request.expected.y})/(${request.gridStep})`))
+      ) {
+        comparison = "scale_mismatch";
       } else if (y.equal) {
         comparison = "x_mismatch";
       } else if (x.equal) {

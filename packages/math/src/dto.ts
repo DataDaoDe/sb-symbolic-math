@@ -162,6 +162,10 @@ export interface CompareNumericAnswerResponseDto {
   diagnostics: DiagnosticDto[];
 }
 
+export interface BaseTenPlaceDto { exponent: number; coefficient: number }
+export interface BaseTenDecompositionResponseDto { outcome: MathematicalOutcomeDto; value: ExactValueDto | null; places: BaseTenPlaceDto[]; diagnostics: DiagnosticDto[] }
+export interface CompareBaseTenResponseDto { outcome: MathematicalOutcomeDto; relation: string; equal: boolean | null; expected_normalized: ExactValueDto | null; submitted_normalized: ExactValueDto | null; expected_places: BaseTenPlaceDto[]; submitted_places: BaseTenPlaceDto[]; diagnostics: DiagnosticDto[] }
+
 export interface MathDerivationStepDto {
   rule: string;
   reason: string;
@@ -232,6 +236,9 @@ export interface RunLinearEquationStrategyResponseDto {
 }
 
 export interface WasmMathEngineBinding {
+  decomposeBaseTen?(valueJson: string, minimumExponent: number, maximumExponent: number): string;
+  composeBaseTen?(placesJson: string): string;
+  compareBaseTen?(expectedJson: string, submittedJson: string, minimumExponent: number, maximumExponent: number): string;
   validateRealFunction?(sourceJson: string): string;
   compareRealFunctions?(leftJson: string, rightJson: string, relation: string): string;
   evaluateRealFunction?(sourceJson: string, inputJson: string): string;

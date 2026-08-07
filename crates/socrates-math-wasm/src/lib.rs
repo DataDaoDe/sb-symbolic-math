@@ -1,6 +1,7 @@
 use socrates_math_app::MathEngine;
 use socrates_math_protocol::{
-    ExactQuantityDto, ExactValueDto, RealDomainDto, RealFunctionSourceDto, SetBindingDto,
+    BaseTenPlaceDto, ExactQuantityDto, ExactValueDto, RealDomainDto, RealFunctionSourceDto,
+    SetBindingDto,
 };
 use wasm_bindgen::prelude::*;
 
@@ -18,6 +19,45 @@ impl WasmMathEngine {
     pub fn protocol_manifest(&self) -> Result<String, JsValue> {
         serde_json::to_string(&MathEngine::protocol_manifest())
             .map_err(|error| JsValue::from_str(&error.to_string()))
+    }
+
+    #[wasm_bindgen(js_name = decomposeBaseTen)]
+    pub fn decompose_base_ten(
+        &self,
+        value_json: &str,
+        minimum_exponent: i32,
+        maximum_exponent: i32,
+    ) -> Result<String, JsValue> {
+        let value = parse_json::<ExactValueDto>(value_json)?;
+        serialize(&MathEngine::decompose_base_ten(
+            &value,
+            minimum_exponent,
+            maximum_exponent,
+        ))
+    }
+
+    #[wasm_bindgen(js_name = composeBaseTen)]
+    pub fn compose_base_ten(&self, places_json: &str) -> Result<String, JsValue> {
+        let places = parse_json::<Vec<BaseTenPlaceDto>>(places_json)?;
+        serialize(&MathEngine::compose_base_ten(&places))
+    }
+
+    #[wasm_bindgen(js_name = compareBaseTen)]
+    pub fn compare_base_ten(
+        &self,
+        expected_json: &str,
+        submitted_json: &str,
+        minimum_exponent: i32,
+        maximum_exponent: i32,
+    ) -> Result<String, JsValue> {
+        let expected = parse_json::<ExactValueDto>(expected_json)?;
+        let submitted = parse_json::<Vec<BaseTenPlaceDto>>(submitted_json)?;
+        serialize(&MathEngine::compare_base_ten(
+            &expected,
+            &submitted,
+            minimum_exponent,
+            maximum_exponent,
+        ))
     }
 
     #[wasm_bindgen(js_name = validateMathExpression)]

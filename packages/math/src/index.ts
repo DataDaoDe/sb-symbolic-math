@@ -1,5 +1,12 @@
 export { createMathEngine } from "./engine.js";
+export { generateExactRationalTicks, parseExactRationalLiteral } from "./exact-grid.js";
 export type { CreateMathEngineOptions } from "./engine.js";
+export type {
+  ExactRationalTick,
+  GenerateExactRationalTicksRequest,
+  GenerateExactRationalTicksResult,
+  ParseExactRationalLiteralResult,
+} from "./exact-grid.js";
 export type {
   ApplicableRule,
   ApplyMathExpressionRuleRequest,
@@ -22,6 +29,12 @@ export type {
   RunLinearEquationStrategyResult,
   CompareNumericAnswerRequest,
   CompareNumericAnswerResult,
+  BaseTenPlace,
+  DecomposeBaseTenRequest,
+  ComposeBaseTenRequest,
+  CompareBaseTenRequest,
+  BaseTenDecompositionResult,
+  CompareBaseTenResult,
   ExactPointInput,
   ExactPointComparison,
   CompareExactPointAnswerRequest,
